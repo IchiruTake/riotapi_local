@@ -1,0 +1,3 @@
+# For local reproduction, 
+
+python -m pip install limits fastapi "uvicorn[standard]" python-multipart tzdata logfire
