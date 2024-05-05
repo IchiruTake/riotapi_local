@@ -10,10 +10,10 @@ LOGGER:
     DEBUG_FILE_HANDLER:
         ENABLED: true
         # Filename
-        LOG_FILE: /data/log/azure_mysqlbackup_basic_debug.log
+        LOG_FILE: ./log/riotapi_debug.log
         LOG_FILEMODE: a
         ROTATE_LOG: true
-        ROTATE_EVERY_SEC: true
+        ROTATE_EVERY_SEC: false
 
         LOG_FORMAT: '[%(name)s-BASIC-DEBUGFILE] [%(asctime)s] [%(levelname)s] [File=%(pathname)s ; Line=%(lineno)d]: %(message)s'
         ENCODING: utf-8

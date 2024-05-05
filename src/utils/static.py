@@ -30,3 +30,7 @@ DAY: int = 24 * HOUR
 WEEK: int = 7 * DAY
 MONTH: int = int(30.5 * DAY)
 YEAR: int = int(365.25 * DAY)
+
+# ==================================================================================================
+RIOTAPI_ENV_CFG_FILE: str = "./conf/riotapi.env.toml"
+RIOTAPI_LOG_CFG_FILE: str = "./conf/riotapi.log.yaml"
