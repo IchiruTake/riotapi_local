@@ -35,3 +35,4 @@ README.md
 
 # Ignore the following files when building the container image
 **/docs
+**/log
