@@ -19,14 +19,14 @@ def riotapi_region_routing(user_region: str) -> str:
         "LA1": "AMERICAS",
         "LA2": "AMERICAS",
         "NA1": "AMERICAS",
-        "OC1": "ASIA",
-        "PH2": "ASIA",
+        "OC1": "SEA",
+        "PH2": "SEA",
         "RU": "EUROPE",
-        "SG2": "ASIA",
-        "TH2": "ASIA",
+        "SG2": "SEA",
+        "TH2": "SEA",
         "TR1": "EUROPE",
-        "TW2": "ASIA",
-        "VN2": "ASIA"
+        "TW2": "SEA",
+        "VN2": "SEA"
     }
     if user_region not in mapping:
         logging.error(f"Invalid region: {user_region}")
@@ -35,19 +35,12 @@ def riotapi_region_routing(user_region: str) -> str:
 
 # ==================================================================================================
 
-
-class RiotAccount(BaseModel):
-    puuid: str = Field(..., title="PUUID", description="The PUUID of the player you want to track")
-    gameName: str = Field(..., title="Player Name", description="The player's name of the player you want to track")
-    tagLine: str = Field(..., title="Tagline", description="The tagline of the player you want to track")
-
-
 router = APIRouter()
 
 
-@ttl_cache(maxsize=16, ttl=300, timer=perf_counter, typed=True)
-@router.get("/{username}/{tagLine}", response_model=RiotAccount)
-async def get_riot_account(username: str, tagLine: str):
+@ttl_cache(maxsize=128, ttl=60, timer=perf_counter, typed=True)
+@router.get("/{region}/{puuid}", response_model=list[str])
+async def get_matches(region: str, puuid: str, start: int = 0, count: int = 0) -> list[str]:
     """
     Get the Riot account information of a player by their username and tagline.
 
