@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Callable
 
 from fastapi import HTTPException, Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from monitor.middleware.base import BaseHTTPMiddleware
 
 
 class ExpiryTimeMiddleware(BaseHTTPMiddleware):
