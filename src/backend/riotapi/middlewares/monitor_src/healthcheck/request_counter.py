@@ -7,7 +7,7 @@ from functools import lru_cache
 from math import floor
 from typing import Any, Dict, Optional
 
-from src.backend.riotapi.middlewares.healthcheck.counter.counter import BaseCounter
+from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
 DIVISOR_UNIT: int = 1024  # 1KiB = 1024 bytes (kilobytes)
 BIN_DATA_COLUMN: int = 128  # 128 bytes bin size

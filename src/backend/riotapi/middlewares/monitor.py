@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+import contextlib
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from httpx import HTTPStatusError
@@ -12,7 +13,7 @@ from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
-from src.backend.riotapi.middlewares.client.asyncio import ApitallyClient
+from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import ApitallyClient
 from src.backend.riotapi.middlewares.common import get_versions
 
 
@@ -160,15 +161,12 @@ def _get_app_info(app: ASGIApp, app_version: Optional[str] = None, openapi_url: 
     return app_info
 
 
-def _get_openapi(app: ASGIApp, openapi_url: str) -> Optional[str]:
-    try:
+def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
+    with contextlib.suppress(HTTPStatusError):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.get(openapi_url)
         response.raise_for_status()
         return response.text
-    except HTTPStatusError:
-        return None
-
 
 def _get_endpoint_info(app: ASGIApp) -> List[EndpointInfo]:
     routes = _get_routes(app)

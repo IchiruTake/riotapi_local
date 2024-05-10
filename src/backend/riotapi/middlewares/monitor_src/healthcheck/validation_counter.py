@@ -2,7 +2,7 @@ from collections import Counter
 from dataclasses import dataclass, asdict
 from typing import Any, Tuple
 
-from src.backend.riotapi.middlewares.healthcheck.counter.counter import BaseCounter
+from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
 
 @dataclass(slots=True, frozen=True)

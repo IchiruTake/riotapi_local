@@ -7,8 +7,8 @@ from queue import Queue
 import backoff
 import requests
 
-from src.backend.riotapi.middlewares.client.base import ApitallyClientBase
-from src.backend.riotapi.middlewares.client.base import MAX_QUEUE_TIME, REQUEST_TIMEOUT, GET_TIME_COUNTER
+from src.backend.riotapi.middlewares.monitor_src.client.base import ApitallyClientBase
+from src.backend.riotapi.middlewares.monitor_src.client.base import MAX_QUEUE_TIME, REQUEST_TIMEOUT, GET_TIME_COUNTER
 
 retry = partial(
     backoff.on_exception,

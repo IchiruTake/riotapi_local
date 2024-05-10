@@ -4,7 +4,7 @@ from collections import Counter
 from dataclasses import dataclass, asdict
 from typing import Any, Optional
 
-from src.backend.riotapi.middlewares.healthcheck.counter.counter import BaseCounter
+from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
 MAX_EXCEPTION_MSG_LENGTH: int = 2048
 EXCEPTION_SUFFIX: str = "... (truncated)"

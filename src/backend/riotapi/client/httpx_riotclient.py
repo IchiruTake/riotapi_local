@@ -5,12 +5,14 @@ from pydantic import BaseModel, Field
 from httpx import Request, Response
 from src.log.timezone import GetProgramTimezone
 
+
 async def log_request(request: Request) -> None:
     request.headers['X-Request-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
     msg: str = f"""
 Request to {request.url} by method {request.method}
 - Headers: {request.headers}"""
     logging.info(msg)
+
 
 async def log_response(response: Response) -> None:
     await response.aread()
