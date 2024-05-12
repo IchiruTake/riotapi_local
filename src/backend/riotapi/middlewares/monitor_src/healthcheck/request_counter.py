@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 from collections import Counter
 from dataclasses import dataclass, asdict

@@ -3,7 +3,7 @@ import re
 from functools import cached_property
 
 import time
-from typing import Any, Optional, Type, TypeVar, cast, Callable
+from typing import Any, TypeVar, Callable
 from uuid import UUID, uuid4
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
