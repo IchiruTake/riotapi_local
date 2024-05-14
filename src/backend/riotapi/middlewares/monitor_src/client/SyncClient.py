@@ -6,8 +6,9 @@ from typing import Any, Callable
 from queue import Queue
 import backoff
 import requests
-
-from src.backend.riotapi.middlewares.monitor_src.client.base import ApitallyClientBase
+import signal
+import atexit
+from src.backend.riotapi.middlewares.monitor_src.client.base import MonitorClientBase
 from src.backend.riotapi.middlewares.monitor_src.client.base import MAX_QUEUE_TIME, REQUEST_TIMEOUT, GET_TIME_COUNTER
 
 retry = partial(
@@ -20,34 +21,23 @@ retry = partial(
 )
 
 
-# Function to register an on-exit callback for both Python and IPython runtimes
-try:
-    def register_exit(func: Callable[..., Any], *args, **kwargs) -> Callable[..., Any]:  # pragma: no cover
-        def callback():
-            func()
-            ipython.events.unregister("post_execute", callback)
-
-        ipython.events.register("post_execute", callback)
-        return func
-
-    ipython = get_ipython()  # type: ignore
-except NameError:
-    from atexit import register as register_exit
-
-
-class ApitallyClient(ApitallyClientBase):
-    def __init__(self, client_id: str, env: str) -> None:
-        super().__init__(client_id=client_id, env=env)
+class SyncMonitorClient(MonitorClientBase):
+    def __init__(self, monitor_datapath: str) -> None:
+        super(SyncMonitorClient, self).__init__()
         self._thread: Thread | None = None
         self._stop_sync_loop: Event = Event()
         self._requests_data_queue: Queue[tuple[float, dict[str, Any]]] = Queue()
 
     def start_sync_loop(self) -> None:
-        self._stop_sync_loop.clear()
+        self._stop_sync_loop.clear()        # Force to be False
         if self._thread is None or not self._thread.is_alive():
             self._thread = Thread(target=self._run_sync_loop, daemon=True)
             self._thread.start()
-            register_exit(self.stop_sync_loop)
+
+            # Execute at-exit callback to stop the sync loop
+            atexit.register(self.stop_sync_loop)
+            signal.signal(signal.SIGINT, self.stop_sync_loop)
+            signal.signal(signal.SIGTERM, self.stop_sync_loop)
 
     def _run_sync_loop(self) -> None:
         try:
@@ -69,7 +59,8 @@ class ApitallyClient(ApitallyClientBase):
             with requests.Session() as session:
                 self.send_requests_data(session)
 
-    def stop_sync_loop(self) -> None:
+    def stop_sync_loop(self, *args) -> None:
+        # Set *args to handle the signal arguments
         self._stop_sync_loop.set()
         if self._thread is not None:
             self._thread.join()

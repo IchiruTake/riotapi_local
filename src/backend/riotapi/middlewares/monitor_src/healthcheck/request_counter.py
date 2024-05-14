@@ -1,3 +1,5 @@
+import logging
+import numpy as np
 import contextlib
 from collections import Counter
 from dataclasses import dataclass, asdict
@@ -7,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
+MAX_ITEMS_COUNT_FOR_ANALYSIS: int = 2048  # Maximum number of **value** to store in the counter
 DIVISOR_UNIT: int = 1024  # 1KiB = 1024 bytes (kilobytes)
 BIN_DATA_COLUMN: int = 128  # 128 bytes bin size
 BIN_TIME_COLUMN: int = 10
@@ -20,6 +23,23 @@ def TIME_UNIT_DIVISOR() -> int:
 
 
 @dataclass(slots=True, frozen=True)
+class RequestAnalysis:
+    analysed_count: int
+    count: int
+    full_total: int | float
+    minimum: int | float
+    maximum: int | float
+    average: int | float
+    total: int | float
+    medium: int | float
+    standard_deviation: int | float
+    p25: int | float
+    p75: int | float
+    p95: int | float
+    p99: int | float
+
+
+@dataclass(slots=True, frozen=True)
 class RequestInfo:
     consumer: str | None
     method: str
@@ -28,7 +48,7 @@ class RequestInfo:
 
 
 class RequestCounter(BaseCounter):
-    def __init__(self) -> None:
+    def __init__(self, bin_mode: bool = True) -> None:
         super(RequestCounter, self).__init__()
         self.request_counts: Counter[RequestInfo] = Counter()
         self.response_times: Dict[RequestInfo, Counter[int]] = {}
@@ -68,11 +88,17 @@ class RequestCounter(BaseCounter):
                 if "_count" in request_info_asdict:
                     raise ValueError("Cannot have '_count' in request_info")
                 request_info_asdict["_count"] = count
+                request_info_asdict["_data"] = request_info
                 request_info_asdict["request_size_sum"] = request_info_asdict["consumer"] or None
                 request_info_asdict["response_size_sum"] = request_info_asdict["consumer"] or None
                 request_info_asdict["response_times"] = request_info_asdict["consumer"] or None
                 request_info_asdict["request_sizes"] = request_info_asdict["consumer"] or None
                 request_info_asdict["response_sizes"] = request_info_asdict["consumer"] or None
+
+                request_info_asdict["response_times_analysis"] = RequestCounter._analyze(self.response_times[request_info])
+                request_info_asdict["request_sizes_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
+                request_info_asdict["response_sizes_analysis"] = RequestCounter._analyze(self.response_sizes[request_info])
+
                 data.append(request_info_asdict)
 
             self.request_counts.clear()
@@ -82,3 +108,29 @@ class RequestCounter(BaseCounter):
             self.request_sizes.clear()
             self.response_sizes.clear()
         return data
+
+    @staticmethod
+    def _analyze(lst: list[int | float]) -> RequestAnalysis:
+        if len(lst) <= MAX_ITEMS_COUNT_FOR_ANALYSIS:
+            analysed_lst = lst
+        else:
+            logging.debug(f"Too many items to analyse: {len(lst)}, which may cause high latency so only analysing "
+                          f"first {MAX_ITEMS_COUNT_FOR_ANALYSIS} items.")
+            analysed_lst = lst[:MAX_ITEMS_COUNT_FOR_ANALYSIS]
+
+        analysed_arr: np.ndarray = np.array(analysed_lst, dtype=np.float64)
+        return RequestAnalysis(
+            analysed_count=len(lst),
+            count=analysed_arr.size,
+            full_total=sum(lst),
+            minimum=analysed_arr.min(),
+            maximum=analysed_arr.max(),
+            average=analysed_arr.mean(),
+            medium=np.median(analysed_arr),
+            total=analysed_arr.sum(),
+            standard_deviation=analysed_arr.std(),
+            p25=np.percentile(analysed_arr, 25),
+            p75=np.percentile(analysed_arr, 75),
+            p95=np.percentile(analysed_arr, 95),
+            p99=np.percentile(analysed_arr, 99),
+        )
