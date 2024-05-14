@@ -5,7 +5,7 @@ from collections import Counter
 from dataclasses import dataclass, asdict
 from functools import lru_cache
 from math import floor
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
@@ -48,52 +48,54 @@ class RequestInfo:
 
 
 class RequestCounter(BaseCounter):
-    def __init__(self, bin_mode: bool = True) -> None:
+    def __init__(self, binMode: bool = True) -> None:
         super(RequestCounter, self).__init__()
+        self._binMode: bool = binMode
         self.request_counts: Counter[RequestInfo] = Counter()
-        self.response_times: Dict[RequestInfo, Counter[int]] = {}
+        self.response_times: dict[RequestInfo, list[int]] = {}
 
-        self.request_size_sums: Counter[RequestInfo] = Counter()
-        self.response_size_sums: Counter[RequestInfo] = Counter()
-        self.request_sizes: Dict[RequestInfo, Counter[int]] = {}
-        self.response_sizes: Dict[RequestInfo, Counter[int]] = {}
+        self.request_sizes: dict[RequestInfo, list[int]] = {}
+        self.response_sizes: dict[RequestInfo, list[int]] = {}
 
-    def accumulate(self, consumer: str | None, method: str, path: str, status_code: int, response_time_in_second: float,
-                   request_size: Optional[str | int | float] = None, response_size: Optional[str | int] = None) -> None:
-        response_time_as_bin: int = int(floor(response_time_in_second / BIN_TIME_COLUMN) * BIN_TIME_COLUMN)
-        response_time_as_bin *= TIME_UNIT_DIVISOR()
+    def accumulate(self, consumer: str | None, method: str, path: str, status_code: int,
+                   response_time_in_second: float,
+                   request_size: str | int | float | None = None,
+                   response_size: str | int | float | None = None) -> None:
+        def _castToBin(size: str | int | float, divisor: int) -> int:
+            size_as_bytes = size
+            if isinstance(size, str):
+                size_as_bytes: int = int(size)
+            if not self._binMode:
+                return size_as_bytes
+            return int(floor(size_as_bytes / divisor) * divisor)
+
+        response_time_as_bin: int = _castToBin(response_time_in_second, BIN_TIME_COLUMN) * TIME_UNIT_DIVISOR()
         request_info = RequestInfo(consumer=consumer, method=method.upper(), path=path, status_code=status_code)
         with self.getLock():
             self.request_counts[request_info] += 1
-            self.response_times.setdefault(request_info, Counter())[response_time_as_bin] += 1
+            self.response_times.setdefault(request_info, []).append(response_time_as_bin)
             if request_size is not None:
                 with contextlib.suppress(ValueError):
-                    request_size_as_bytes: int = int(request_size)
-                    request_size_as_bin: int = int(floor(request_size_as_bytes / BIN_DATA_COLUMN) * BIN_DATA_COLUMN)
-                    self.request_size_sums[request_info] += request_size_as_bytes
-                    self.request_sizes.setdefault(request_info, Counter())[request_size_as_bin] += 1
+                    request_size_as_bin: int = _castToBin(int(request_size), BIN_DATA_COLUMN)
+                    self.request_sizes.setdefault(request_info, []).append(request_size_as_bin)
 
             if response_size is not None:
                 with contextlib.suppress(ValueError):
-                    response_size_as_bytes: int = int(response_size)
-                    response_size_as_bin: int = int(floor(response_size_as_bytes / BIN_DATA_COLUMN) * BIN_DATA_COLUMN)
-                    self.response_size_sums[request_info] += response_size_as_bytes
-                    self.response_sizes.setdefault(request_info, Counter())[response_size_as_bin] += 1
+                    response_size_as_bin: int = _castToBin(int(response_size), BIN_DATA_COLUMN)
+                    self.response_sizes.setdefault(request_info, []).append(response_size_as_bin)
 
     def export(self) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = []
         with self.getLock():
             for request_info, count in self.request_counts.items():
                 request_info_asdict = asdict(request_info)
-                if "_count" in request_info_asdict:
-                    raise ValueError("Cannot have '_count' in request_info")
+                if "_count" in request_info_asdict or "_data" in request_info_asdict:
+                    raise ValueError("Cannot have '_count' or '_data' in request_info")
                 request_info_asdict["_count"] = count
                 request_info_asdict["_data"] = request_info
-                request_info_asdict["request_size_sum"] = request_info_asdict["consumer"] or None
-                request_info_asdict["response_size_sum"] = request_info_asdict["consumer"] or None
-                request_info_asdict["response_times"] = request_info_asdict["consumer"] or None
-                request_info_asdict["request_sizes"] = request_info_asdict["consumer"] or None
-                request_info_asdict["response_sizes"] = request_info_asdict["consumer"] or None
+                request_info_asdict["response_times"] = self.response_times[request_info] or []
+                request_info_asdict["request_sizes"] = self.request_sizes[request_info] or []
+                request_info_asdict["response_sizes"] = self.response_sizes[request_info] or []
 
                 request_info_asdict["response_times_analysis"] = RequestCounter._analyze(self.response_times[request_info])
                 request_info_asdict["request_sizes_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
@@ -102,8 +104,6 @@ class RequestCounter(BaseCounter):
                 data.append(request_info_asdict)
 
             self.request_counts.clear()
-            self.request_size_sums.clear()
-            self.response_size_sums.clear()
             self.response_times.clear()
             self.request_sizes.clear()
             self.response_sizes.clear()

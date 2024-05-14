@@ -48,9 +48,10 @@ class ServerErrorCounter(BaseCounter):
         with self.getLock():
             for server_error, count in self.error_counts.items():
                 server_error_asdict = asdict(server_error)
-                if "_count" in server_error_asdict:
-                    raise ValueError("Cannot have '_count' in server_error")
+                if "_count" in server_error_asdict or "_data" in server_error_asdict:
+                    raise ValueError("Cannot have '_count' or '_data' in server_error")
                 server_error_asdict["_count"] = count
+                server_error_asdict["_data"] = server_error
                 data.append(server_error_asdict)
 
             self.error_counts.clear()

@@ -72,28 +72,31 @@ class MonitorClientBase(BaseCounter):
     def export(self) -> dict[str, Any]:
         logging.info("Monitoring data has been exported.")
         payload = self.create_message()
+        transaction_uuid: str = payload["transaction_uuid"]
         # Requests
-        _requests = self.request_counter.export()
-        transaction = RequestInfoTransaction(transaction_uuid=payload["transaction_uuid"],
-                                             _count=_requests["_count"],
-                                             request_data=_requests["_data"],
-                                             response_times=_requests["response_times_analysis"],
-                                             request_sizes=_requests["request_sizes_analysis"],
-                                             response_sizes=_requests["response_sizes_analysis"])
-        payload["_requests"] = transaction
+        payload["_requests"] = []
+        _requests: list[dict] = self.request_counter.export()
+        for rq in _requests:
+            item = RequestInfoTransaction(transaction_uuid=transaction_uuid, _count=rq["_count"],
+                                          request_data=rq["_data"], response_times=rq["response_times_analysis"],
+                                          request_sizes=rq["request_sizes_analysis"],
+                                          response_sizes=rq["response_sizes_analysis"])
+            payload["_requests"].append(item)
 
         # Validation Errors
+        payload["_validation_errors"] = []
         _validation_errors = self.validation_error_counter.export()
-        transaction = ValidationErrorTransaction(transaction_uuid=payload["transaction_uuid"],
-                                                 _count=_validation_errors["_count"],
-                                                 error_data=_validation_errors["_data"])
-        payload["_validation_errors"] = transaction
+        for ve in _validation_errors:
+            transaction = ValidationErrorTransaction(transaction_uuid=transaction_uuid, _count=ve["_count"],
+                                                     error_data=ve["_data"])
+            payload["_validation_errors"].append(transaction)
 
         # Server Errors
+        payload["_server_errors"] = []
         _server_errors = self.server_error_counter.export()
-        transaction = ServerErrorTransaction(transaction_uuid=payload["transaction_uuid"],
-                                             _count=_server_errors["_count"],
-                                             error_data=_server_errors["_data"])
-        payload["_server_errors"] = transaction
+        for se in _server_errors:
+            transaction = ServerErrorTransaction(transaction_uuid=transaction_uuid, _count=se["_count"],
+                                                 error_data=se["_data"])
+            payload["_server_errors"].append(transaction)
 
         return payload

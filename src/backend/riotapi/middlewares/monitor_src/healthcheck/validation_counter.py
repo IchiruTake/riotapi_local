@@ -41,9 +41,10 @@ class ValidationErrorCounter(BaseCounter):
         with self.getLock():
             for validation_error, count in self.error_counts.items():
                 validation_error_asdict = asdict(validation_error)
-                if "_count" in validation_error_asdict:
+                if "_count" in validation_error_asdict or "_data" in validation_error_asdict:
                     raise ValueError("Cannot have '_count' in validation_error")
                 validation_error_asdict["_count"] = count
+                validation_error_asdict["_data"] = validation_error
                 data.append(validation_error_asdict)
 
             self.error_counts.clear()
