@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 __ZONE: str = 'Asia/Saigon'  # 'UTC' or 'Europe/Paris' or 'Asia/Saigon'
 __TIMEZONE: ZoneInfo = ZoneInfo(__ZONE)  # ZoneInfo('UTC') or ZoneInfo('Europe/Paris')
 
+
 @lru_cache(maxsize=16, typed=True)
 def SwitchTimezone(zone: str) -> ZoneInfo | None:
     return ZoneInfo(zone)

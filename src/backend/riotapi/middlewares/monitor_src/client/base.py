@@ -1,8 +1,10 @@
 import logging
 import time
-from dataclasses import dataclass
-from typing import Any, TypeVar, Callable
-from uuid import UUID, uuid4
+from datetime import datetime
+from src.log.timezone import GetProgramTimezone
+from typing import Any, Callable
+from uuid import uuid4
+from sqlmodel import Field, SQLModel, create_engine, Session
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.request_counter import RequestCounter, RequestInfo, \
@@ -22,28 +24,68 @@ GET_TIME_COUNTER: Callable = time.perf_counter
 
 
 # ========================================================
-@dataclass(slots=True, frozen=True)
-class RequestInfoTransaction:
+class RequestInfoTransaction(SQLModel, table=True):
     transaction_uuid: str
-    _count: int
-    request_data: RequestInfo
-    response_times: RequestAnalysis
-    request_sizes: RequestAnalysis
-    response_sizes: RequestAnalysis
+    count: int = Field(gt=0)
+
+    # Request Data
+    request_data_consumer: str | None
+    request_data_method: str
+    request_data_path: str
+    request_data_status_code: int
+
+    # Response Time
+    response_time_full_total: int
+    response_time_analysed_count: int
+    response_time_average: int
+    response_time_medium: int
+    response_time_std: int
+    response_time_p25: int
+    response_time_p75: int
+    response_time_p95: int
+    response_time_p99: int
+
+    # Request Size
+    request_size_full_total: int
+    request_size_analysed_count: int
+    request_size_average: int
+    request_size_medium: int
+    request_size_std: int
+    request_size_p25: int
+    request_size_p75: int
+    request_size_p95: int
+    request_size_p99: int
+
+    # Response Size
+    response_size_full_total: int
+    response_size_analysed_count: int
+    response_size_average: int
+    response_size_medium: int
+    response_size_std: int
+    response_size_p25: int
+    response_size_p75: int
+    response_size_p95: int
+    response_size_p99: int
 
 
-@dataclass(slots=True, frozen=True)
-class ValidationErrorTransaction:
+class ValidationErrorTransaction(SQLModel, table=True):
     transaction_uuid: str
-    _count: int
-    error_data: ValidationError
+    count: int
+    error_data_consumer: str | None
+    error_data_method: str
+    error_data_path: str
+    error_data_msg: str
+    error_data_type: str
 
 
-@dataclass(slots=True, frozen=True)
-class ServerErrorTransaction:
+class ServerErrorTransaction(SQLModel, table=True):
     transaction_uuid: str
-    _count: int
-    error_data: ServerError
+    count: int
+    error_data_method: str
+    error_data_path: str
+    error_data_type: str
+    error_data_msg: str
+    error_data_traceback: str
 
 
 class MonitorClientBase(BaseCounter):
@@ -70,33 +112,73 @@ class MonitorClientBase(BaseCounter):
         return SYNC_INTERVAL if diff_time > INITIAL_SYNC_INTERVAL_DURATION else INITIAL_SYNC_INTERVAL
 
     def export(self) -> dict[str, Any]:
-        logging.info("Monitoring data has been exported.")
+        logging.info("Monitoring data are exporting.")
         payload = self.create_message()
+        payload["datetime"] = datetime.now(tz=GetProgramTimezone()).isoformat()
+
         transaction_uuid: str = payload["transaction_uuid"]
+
         # Requests
         payload["_requests"] = []
         _requests: list[dict] = self.request_counter.export()
         for rq in _requests:
-            item = RequestInfoTransaction(transaction_uuid=transaction_uuid, _count=rq["_count"],
-                                          request_data=rq["_data"], response_times=rq["response_times_analysis"],
-                                          request_sizes=rq["request_sizes_analysis"],
-                                          response_sizes=rq["response_sizes_analysis"])
+            _data: RequestInfo = rq["_data"]
+            rp_time: RequestAnalysis = rq["response_times_analysis"]
+            rq_size: RequestAnalysis = rq["request_sizes_analysis"]
+            rp_size: RequestAnalysis = rq["response_sizes_analysis"]
+
+            item = RequestInfoTransaction(
+                transaction_uuid=transaction_uuid, count=rq["_count"],
+                request_data_consumer=_data.consumer, request_data_method=_data.method,
+                request_data_path=_data.path, request_data_status_code=_data.status_code,
+
+                response_time_full_total=rp_time.full_total, response_time_analysed_count=rp_time.analysed_count,
+                response_time_average=rp_time.average, response_time_medium=rp_time.medium,
+                response_time_std=rp_time.std, response_time_p25=rp_time.p25, response_time_p75=rp_time.p75,
+                response_time_p95=rp_time.p95, response_time_p99=rp_time.p99,
+
+                request_size_full_total=rq_size.full_total, request_size_analysed_count=rq_size.analysed_count,
+                request_size_average=rq_size.average, request_size_medium=rq_size.medium,
+                request_size_std=rq_size.std, request_size_p25=rq_size.p25, request_size_p75=rq_size.p75,
+                request_size_p95=rq_size.p95, request_size_p99=rq_size.p99,
+
+                response_size_full_total=rp_size.full_total, response_size_analysed_count=rp_size.analysed_count,
+                response_size_average=rp_size.average, response_size_medium=rp_size.medium,
+                response_size_std=rp_size.std, response_size_p25=rp_size.p25, response_size_p75=rp_size.p75,
+                response_size_p95=rp_size.p95, response_size_p99=rp_size.p99
+            )
             payload["_requests"].append(item)
 
         # Validation Errors
         payload["_validation_errors"] = []
         _validation_errors = self.validation_error_counter.export()
         for ve in _validation_errors:
-            transaction = ValidationErrorTransaction(transaction_uuid=transaction_uuid, _count=ve["_count"],
-                                                     error_data=ve["_data"])
+            _ve: ValidationError = ve["_data"]
+            transaction = ValidationErrorTransaction(
+                transaction_uuid=transaction_uuid,
+                count=ve["_count"],
+                error_data_consumer=_ve.consumer,
+                error_data_method=_ve.method,
+                error_data_path=_ve.path,
+                error_data_msg=_ve.msg,
+                error_data_type=_ve.type
+            )
             payload["_validation_errors"].append(transaction)
 
         # Server Errors
         payload["_server_errors"] = []
         _server_errors = self.server_error_counter.export()
         for se in _server_errors:
-            transaction = ServerErrorTransaction(transaction_uuid=transaction_uuid, _count=se["_count"],
-                                                 error_data=se["_data"])
+            _se: ServerError = se["_data"]
+            transaction = ServerErrorTransaction(
+                transaction_uuid=transaction_uuid,
+                count=se["_count"],
+                error_data_method=_se.method,
+                error_data_path=_se.path,
+                error_data_type=_se.type,
+                error_data_msg=_se.msg,
+                error_data_traceback=_se.traceback
+            )
             payload["_server_errors"].append(transaction)
 
         return payload

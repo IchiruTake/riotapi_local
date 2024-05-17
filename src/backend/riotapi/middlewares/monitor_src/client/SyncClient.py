@@ -9,6 +9,9 @@ import backoff
 import requests
 import signal
 import atexit
+
+from sqlmodel import Field, SQLModel, create_engine, Session
+
 from src.backend.riotapi.middlewares.monitor_src.client.base import MonitorClientBase
 from src.backend.riotapi.middlewares.monitor_src.client.base import MAX_QUEUE_TIME, REQUEST_TIMEOUT, GET_TIME_COUNTER
 

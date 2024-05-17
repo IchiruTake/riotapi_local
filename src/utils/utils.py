@@ -1,5 +1,6 @@
 from typing import Sequence
 
+
 def convertBytesToHumanReadable(size: int, divisor: int = 1024, scales_constraint: Sequence[str] | None = None) \
         -> tuple[int, int | float, str]:
     """

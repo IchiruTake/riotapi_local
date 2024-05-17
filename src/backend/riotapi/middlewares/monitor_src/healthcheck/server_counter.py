@@ -14,7 +14,7 @@ TRACEBACK_PREFIX: str = "... (truncated) ...\n"
 
 @dataclass(slots=True, frozen=True)
 class ServerError:
-    consumer: Optional[str]
+    consumer: str | None
     method: str
     path: str
     type: str

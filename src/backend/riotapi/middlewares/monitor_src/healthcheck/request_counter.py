@@ -24,19 +24,17 @@ def TIME_UNIT_DIVISOR() -> int:
 
 @dataclass(slots=True, frozen=True)
 class RequestAnalysis:
-    analysed_count: int
     count: int
     full_total: int | float
-    minimum: int | float
-    maximum: int | float
-    average: int | float
-    total: int | float
-    medium: int | float
-    standard_deviation: int | float
-    p25: int | float
-    p75: int | float
-    p95: int | float
-    p99: int | float
+
+    analysed_count: int
+    average: int
+    medium: int
+    std: int
+    p25: int
+    p75: int
+    p95: int
+    p99: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -48,9 +46,10 @@ class RequestInfo:
 
 
 class RequestCounter(BaseCounter):
-    def __init__(self, binMode: bool = True) -> None:
+    def __init__(self, binTimeMode: bool = True, binDataMode: bool = False) -> None:
         super(RequestCounter, self).__init__()
-        self._binMode: bool = binMode
+        self._binTimeMode: bool = binTimeMode
+        self._binDataMode: bool = binDataMode
         self.request_counts: Counter[RequestInfo] = Counter()
         self.response_times: dict[RequestInfo, list[int]] = {}
 
@@ -61,27 +60,30 @@ class RequestCounter(BaseCounter):
                    response_time_in_second: float,
                    request_size: str | int | float | None = None,
                    response_size: str | int | float | None = None) -> None:
-        def _castToBin(size: str | int | float, divisor: int) -> int:
+        def _castToBin(size: str | int | float, divisor: int, binMode: bool) -> int:
             size_as_bytes = size
             if isinstance(size, str):
                 size_as_bytes: int = int(size)
-            if not self._binMode:
+            if not binMode:
                 return size_as_bytes
             return int(floor(size_as_bytes / divisor) * divisor)
 
-        response_time_as_bin: int = _castToBin(response_time_in_second, BIN_TIME_COLUMN) * TIME_UNIT_DIVISOR()
+        response_time_as_bin: int = _castToBin(response_time_in_second * TIME_UNIT_DIVISOR(), BIN_TIME_COLUMN,
+                                               binMode=self._binTimeMode)
         request_info = RequestInfo(consumer=consumer, method=method.upper(), path=path, status_code=status_code)
         with self.getLock():
             self.request_counts[request_info] += 1
             self.response_times.setdefault(request_info, []).append(response_time_as_bin)
             if request_size is not None:
                 with contextlib.suppress(ValueError):
-                    request_size_as_bin: int = _castToBin(int(request_size), BIN_DATA_COLUMN)
+                    request_size_as_bin: int = _castToBin(int(request_size), BIN_DATA_COLUMN,
+                                                          binMode=self._binDataMode)
                     self.request_sizes.setdefault(request_info, []).append(request_size_as_bin)
 
             if response_size is not None:
                 with contextlib.suppress(ValueError):
-                    response_size_as_bin: int = _castToBin(int(response_size), BIN_DATA_COLUMN)
+                    response_size_as_bin: int = _castToBin(int(response_size), BIN_DATA_COLUMN,
+                                                           binMode=self._binDataMode)
                     self.response_sizes.setdefault(request_info, []).append(response_size_as_bin)
 
     def export(self) -> list[dict[str, Any]]:
@@ -97,9 +99,9 @@ class RequestCounter(BaseCounter):
                 request_info_asdict["request_sizes"] = self.request_sizes[request_info] or []
                 request_info_asdict["response_sizes"] = self.response_sizes[request_info] or []
 
-                request_info_asdict["response_times_analysis"] = RequestCounter._analyze(self.response_times[request_info])
-                request_info_asdict["request_sizes_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
-                request_info_asdict["response_sizes_analysis"] = RequestCounter._analyze(self.response_sizes[request_info])
+                request_info_asdict["response_time_analysis"] = RequestCounter._analyze(self.response_times[request_info])
+                request_info_asdict["request_size_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
+                request_info_asdict["response_size_analysis"] = RequestCounter._analyze(self.response_sizes[request_info])
 
                 data.append(request_info_asdict)
 
@@ -116,21 +118,18 @@ class RequestCounter(BaseCounter):
         else:
             logging.debug(f"Too many items to analyse: {len(lst)}, which may cause high latency so only analysing "
                           f"first {MAX_ITEMS_COUNT_FOR_ANALYSIS} items.")
-            analysed_lst = lst[:MAX_ITEMS_COUNT_FOR_ANALYSIS]
-
+            analysed_lst = (lst[:MAX_ITEMS_COUNT_FOR_ANALYSIS]).copy()
+        analysed_lst.sort()
         analysed_arr: np.ndarray = np.array(analysed_lst, dtype=np.float64)
         return RequestAnalysis(
-            analysed_count=len(lst),
             count=analysed_arr.size,
             full_total=sum(lst),
-            minimum=analysed_arr.min(),
-            maximum=analysed_arr.max(),
-            average=analysed_arr.mean(),
-            medium=np.median(analysed_arr),
-            total=analysed_arr.sum(),
-            standard_deviation=analysed_arr.std(),
-            p25=np.percentile(analysed_arr, 25),
-            p75=np.percentile(analysed_arr, 75),
-            p95=np.percentile(analysed_arr, 95),
-            p99=np.percentile(analysed_arr, 99),
+            analysed_count=len(lst),
+            average=int(analysed_arr.mean()),
+            medium=int(np.median(analysed_arr)),
+            std=int(analysed_arr.std()),
+            p25=int(np.percentile(analysed_arr, 25)),
+            p75=int(np.percentile(analysed_arr, 75)),
+            p95=int(np.percentile(analysed_arr, 95)),
+            p99=int(np.percentile(analysed_arr, 99))
         )

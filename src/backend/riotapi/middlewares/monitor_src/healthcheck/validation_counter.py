@@ -10,7 +10,7 @@ class ValidationError:
     consumer: str | None
     method: str
     path: str
-    loc: Tuple[str, ...]
+    loc: tuple[str, ...]
     msg: str
     type: str
 
