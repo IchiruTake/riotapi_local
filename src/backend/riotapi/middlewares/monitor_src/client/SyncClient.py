@@ -9,29 +9,39 @@ import backoff
 import requests
 import signal
 import atexit
-
-from sqlmodel import Field, SQLModel, create_engine, Session
-
+from sqlmodel import SQLModel, create_engine, Session
+from copy import deepcopy
+from sqlalchemy.exc import SQLAlchemyError
+import itertools
 from src.backend.riotapi.middlewares.monitor_src.client.base import MonitorClientBase
-from src.backend.riotapi.middlewares.monitor_src.client.base import MAX_QUEUE_TIME, REQUEST_TIMEOUT, GET_TIME_COUNTER
+from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 
-retry = partial(
-    backoff.on_exception,
-    backoff.expo,
-    requests.RequestException,
-    max_tries=3,
-    logger=logging,
-    backoff_log_level=logging.INFO,
-    giveup_log_level=logging.WARNING,
-)
+
+# ================================================================
+SQLITE_DB: str = "riotapi_monitor.db"
+SQLITE_PARAMS: dict[str, str] = {
+    "timeout": "10",
+    "uri": "true",
+    "cache": "private",
+    "check_same_thread": "true",
+}
+DEBUG: bool = True
+TRANSACTION_BATCH_SIZE: int = 128
+MAX_FAILED_TRANSACTION: int = 3
 
 
 class SyncMonitorClient(MonitorClientBase):
-    def __init__(self, monitor_datapath: str) -> None:
+    def __init__(self) -> None:
         super(SyncMonitorClient, self).__init__()
         self._thread: Thread | None = None
         self._stop_sync_loop: Event = Event()
         self._requests_data_queue: Queue[tuple[float, dict[str, Any]]] = Queue()
+
+        # Save monitoring health of the server by using SQLite database
+        self._monitor_sqlite_datapath: str = SQLITE_DB
+        params = "&".join([f"{k}={v}" for k, v in SQLITE_PARAMS.items()])
+        self._engine = create_engine(f"sqlite:///file:{self._monitor_sqlite_datapath}?{params}", echo=DEBUG)
+        SQLModel.metadata.create_all(self._engine)
 
     def start_sync_loop(self) -> None:
         logging.info("Starting sync loop for monitor client")
@@ -52,23 +62,22 @@ class SyncMonitorClient(MonitorClientBase):
             last_sync_time: float = 0.0
             while not self._stop_sync_loop.is_set():
                 try:
-                    now = GET_TIME_COUNTER()
-                    if (now - last_sync_time) >= self.sync_interval:
-                        logging.info("Syncing data to monitor server")
-                        with requests.Session() as session:
-                            self.send_requests_data(session)
-
+                    diff_time: float = GET_TIME_COUNTER() - last_sync_time
+                    if diff_time >= self.sync_interval:
+                        logging.info("Proceeding data to the monitor server")
+                        self._proceed_data()
                         # Update the last sync time
-                        last_sync_time = now
+                        last_sync_time = GET_TIME_COUNTER()
+                    else:
+                        logging.info(f"Waiting for the next sync interval at {self.sync_interval - diff_time} seconds")
 
-                    # Random sleep to avoid sync loop to be too predictable
-                    time.sleep(random.uniform(0.25, 1.5))
+                    # Small random sleep to avoid sync loop to be too predictable
+                    time.sleep(random.uniform(0.25, 0.75))
                 except Exception as e:  # pragma: no cover
                     logging.exception(e)
         finally:
-            logging.info("Send any remaining requests data before exiting")
-            with requests.Session() as session:
-                self.send_requests_data(session)
+            logging.info("Proceeding last data to the monitor server before stopping the sync loop")
+            self._proceed_data()
 
     def stop_sync_loop(self, *args) -> None:
         # Set *args to handle the signal arguments
@@ -77,24 +86,57 @@ class SyncMonitorClient(MonitorClientBase):
             self._thread.join()
             self._thread = None
 
-
     def _proceed_data(self) -> None:
-        pass
+        self._requests_data_queue.put_nowait((GET_TIME_COUNTER(), self.export()))
+        transaction_tables: list[str] = self.list_transaction_payload()
+        placeholder = []
 
-    def send_requests_data(self, session: requests.Session) -> None:
-        payload = self.export()
-        self._requests_data_queue.put_nowait((GET_TIME_COUNTER(), payload))
-
-        failed_items = []
+        # Iterate through the queue to process the data
         while not self._requests_data_queue.empty():
             payload_time, payload = self._requests_data_queue.get_nowait()
-            try:
-                if (time_offset := GET_TIME_COUNTER() - payload_time) <= MAX_QUEUE_TIME:
-                    payload["time_offset"] = time_offset
-                    # self._send_requests_data(session, payload)
-                self._requests_data_queue.task_done()
-            except requests.RequestException:
-                failed_items.append((payload_time, payload))
-        for item in failed_items:
-            self._requests_data_queue.put_nowait(item)
+            payload_if_failed: bool = False
+            for table in transaction_tables:
+                transactions = payload.get(table, [])
+                if not transactions:    # Skip if there is no transaction data to be added
+                    continue
+                failed_lst = []
 
+                with Session(self._engine) as ss:
+                    with ss.begin():
+                        for batch in itertools.batched(transactions, TRANSACTION_BATCH_SIZE):
+                            try:
+                                ss.add_all(batch)
+                            except SQLAlchemyError as e:
+                                ss.rollback()
+                                logging.exception(e, exc_info=True)
+                                failed_lst.extend(deepcopy(batch))
+                                payload_if_failed = True
+                            else:
+                                ss.commit()
+                if not failed_lst:
+                    del payload[table]
+                else:
+                    payload[table] = failed_lst
+
+            # If no failed transactions, then proceed to the next payload; otherwise, add back to the queue
+            transaction_id: str = payload["transaction_uuid"]
+            next_payload_time = GET_TIME_COUNTER()
+            logging.info(f"Proceeding the payload of transaction {transaction_id} in "
+                         f"{next_payload_time - payload_time} seconds.")
+            if not payload_if_failed:
+                self._requests_data_queue.task_done()
+                continue
+
+            # Add back to the queue if there is any failed transactions
+            failed_count: int = payload.get("failed_count", 0) + 1
+            payload["failed_count"] = failed_count
+
+            logging.warning(f"Failed to insert the payload {failed_count} time(s) into the monitoring database "
+                            f"at transaction {transaction_id}")
+            if failed_count > MAX_FAILED_TRANSACTION:
+                logging.error(f"Exceeding the number of retry for this transaction {transaction_id}. Drop the payload.")
+            else:
+                placeholder.append((next_payload_time, payload))
+
+        for item in placeholder:
+            self._requests_data_queue.put_nowait(item)

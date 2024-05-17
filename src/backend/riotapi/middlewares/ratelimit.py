@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import Callable
 
 from fastapi import FastAPI, Request, HTTPException, status
-from monitor.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.utils.static import MINUTE
 

@@ -13,6 +13,7 @@ from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
+from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import ApitallyClient
 from src.backend.riotapi.middlewares.common import get_versions
 
@@ -39,6 +40,7 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
     ) -> None:
         self.filter_unhandled_paths = filter_unhandled_paths
         self.identify_consumer_callback = identify_consumer_callback
+        self.client = SyncMonitorClient()
         self.client = ApitallyClient(client_id=client_id, env=env)
         self.client.start_sync_loop()
         self.delayed_set_app_info(app_version, openapi_url)

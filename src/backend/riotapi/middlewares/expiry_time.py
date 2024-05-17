@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Callable
 
 from fastapi import HTTPException, Request
-from monitor.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class ExpiryTimeMiddleware(BaseHTTPMiddleware):
@@ -13,7 +13,6 @@ class ExpiryTimeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Check how many requests has been processed
         deadline: datetime = self.deadline if isinstance(self.deadline, datetime) else self.deadline()
-        NOW = datetime.now(tz=deadline.tzinfo)
-        if NOW > deadline:
+        if datetime.now(tz=deadline.tzinfo) > deadline:
             raise HTTPException(status_code=403, detail="Token expired or constraint setup by the programmer.")
         return await call_next(request)

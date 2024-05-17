@@ -23,6 +23,7 @@ from src.backend.riotapi.routes.account import router as account_router
 # print(sys.path)
 
 # ==================================================================================================
+
 @lru_cache(maxsize=8, typed=True)
 def _load_datetime(year: int, month: int, day: int, hour: int, minute: int, second: int, timezone: str) -> datetime:
     return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second, tzinfo=ZoneInfo(timezone))
@@ -41,11 +42,13 @@ def load_expiry_time() -> datetime:
         TIMEZONE = deadline_cfg['TIMEZONE']
         return _load_datetime(YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, TIMEZONE)
 
+
 class RIOTAPI_USER(BaseModel):
     PUUID: str | None = Field(None, title="PUUID", description="The PUUID of the player you want to track")
     USERNAME: str = Field(..., title="Username", description="The username of the player you want to track")
     TAGLINE: str = Field(..., title="Tagline", description="The tagline of the player you want to track")
     REGION: str = Field(..., title="Region", description="The region of the player you want to track")
+
 
 @asynccontextmanager
 async def riotapi_lifespan(app: FastAPI):
@@ -135,6 +138,7 @@ class USER_CFG(BaseModel):
     TIMEOUT: dict = Field(default_factory=dict, title="Timeout", description="The timeout for the HTTP request")
     AUTH: dict = Field(default_factory=dict, title="Authorization", description="The API key for the Riot API")
 
+
 SECRET_KEY = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=DAY, https_only=False)  # 1-day session
 app.add_middleware(ExpiryTimeMiddleware, deadline=load_expiry_time)
@@ -147,6 +151,14 @@ with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment:
         REQUESTS_INTERVAL: int = value["REQUESTS_INTERVAL"]
         app.add_middleware(RateLimiterMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
 
+
+# ==================================================================================================
+APIROUTER_MAPPING: dict[str, APIRouter] = {
+    "/account/v1": account_router
+}
+
+with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment:
+    config = toml.load(riotapi_environment)
     # Set tracking users
     cfg = config["riotapi"]["user"]
     app.user = RIOTAPI_USER(**cfg)
@@ -158,16 +170,10 @@ with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment:
         "AUTH": config["riotapi"]["key"]
     }
     global_user_cfg = USER_CFG(**user_cfg)
-
-# ==================================================================================================
-APIROUTER_MAPPING: dict[str, APIRouter] = {
-    "/account/v1": account_router
-}
-for path, router in APIROUTER_MAPPING.items():
-    app.include_router(router, prefix=path)
-    router.default_user = app.user
-    router.default_user_cfg = global_user_cfg
-
+    for path, router in APIROUTER_MAPPING.items():
+        app.include_router(router, prefix=path)
+        router.default_user = app.user
+        router.default_user_cfg = global_user_cfg
 
 @app.get("/")
 async def root():
