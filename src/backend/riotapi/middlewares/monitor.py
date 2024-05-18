@@ -1,6 +1,4 @@
-import asyncio
 import json
-import time
 import contextlib
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -12,9 +10,9 @@ from starlette.schemas import EndpointInfo, SchemaGenerator
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
-
+from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
-from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import ApitallyClient
+from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.common import get_versions
 
 
@@ -28,35 +26,17 @@ __all__ = ["ApitallyMiddleware"]
 
 
 class ApitallyMiddleware(BaseHTTPMiddleware):
-    def __init__(
-        self,
-        app: ASGIApp,
-        client_id: str,
-        env: str = "dev",
-        app_version: Optional[str] = None,
-        openapi_url: Optional[str] = "/openapi.json",
-        filter_unhandled_paths: bool = True,
-        identify_consumer_callback: Optional[Callable[[Request], Optional[str]]] = None,
-    ) -> None:
+    def __init__(self, app: ASGIApp, filter_unhandled_paths: bool = True,
+                 identify_consumer_callback: Optional[Callable[[Request], Optional[str]]] = None,):
         self.filter_unhandled_paths = filter_unhandled_paths
         self.identify_consumer_callback = identify_consumer_callback
-        self.client = SyncMonitorClient()
-        self.client = ApitallyClient(client_id=client_id, env=env)
+        self.client: SyncMonitorClient | AsyncMonitorClient = AsyncMonitorClient()
         self.client.start_sync_loop()
-        self.delayed_set_app_info(app_version, openapi_url)
         _register_shutdown_handler(app, self.client.handle_shutdown)
         super().__init__(app)
 
-    def delayed_set_app_info(self, app_version: Optional[str] = None, openapi_url: Optional[str] = None) -> None:
-        asyncio.create_task(self._delayed_set_app_info(app_version, openapi_url))
-
-    async def _delayed_set_app_info(self, app_version: Optional[str] = None, openapi_url: Optional[str] = None) -> None:
-        await asyncio.sleep(1.0)  # Short delay to allow app routes to be registered first
-        app_info = _get_app_info(self.app, app_version, openapi_url)
-        self.client.set_app_info(app_info)
-
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        start_time = time.perf_counter()
+        start_time = GET_TIME_COUNTER()
         try:
             response = await call_next(request)
         except BaseException as e:
@@ -64,7 +44,7 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
                 request=request,
                 response=None,
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                response_time=time.perf_counter() - start_time,
+                response_time=GET_TIME_COUNTER() - start_time,
                 exception=e,
             )
             raise e from None
@@ -73,22 +53,22 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
                 request=request,
                 response=response,
                 status_code=response.status_code,
-                response_time=time.perf_counter() - start_time,
+                response_time=GET_TIME_COUNTER() - start_time,
             )
         return response
 
     async def add_request(
         self,
         request: Request,
-        response: Optional[Response],
+        response: Response | None,
         status_code: int,
         response_time: float,
-        exception: Optional[BaseException] = None,
+        exception: BaseException | None = None,
     ) -> None:
         path_template, is_handled_path = self.get_path_template(request)
         if is_handled_path or not self.filter_unhandled_paths:
             consumer = self.get_consumer(request)
-            self.client.request_counter.add_request(
+            self.client.request_counter[0].accumulate(
                 consumer=consumer,
                 method=request.method,
                 path=path_template,
@@ -105,14 +85,14 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
                 body = await self.get_response_json(response)
                 if isinstance(body, dict) and "detail" in body and isinstance(body["detail"], list):
                     # Log FastAPI / Pydantic validation errors
-                    self.client.validation_error_counter.add_validation_errors(
+                    self.client.validation_error_counter[0].accumulate(
                         consumer=consumer,
                         method=request.method,
                         path=path_template,
                         detail=body["detail"],
                     )
             if status_code == 500 and exception is not None:
-                self.client.server_error_counter.add_server_error(
+                self.client.server_error_counter[0].accumulate(
                     consumer=consumer,
                     method=request.method,
                     path=path_template,
@@ -135,14 +115,14 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
                 return None
 
     @staticmethod
-    def get_path_template(request: Request) -> Tuple[str, bool]:
+    def get_path_template(request: Request) -> tuple[str, bool]:
         for route in request.app.routes:
             match, _ = route.matches(request.scope)
             if match == Match.FULL:
                 return route.path, True
         return request.url.path, False
 
-    def get_consumer(self, request: Request) -> Optional[str]:
+    def get_consumer(self, request: Request) -> str | None:
         if hasattr(request.state, "consumer_identifier"):
             return str(request.state.consumer_identifier)
         if self.identify_consumer_callback is not None:
@@ -152,7 +132,7 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
         return None
 
 
-def _get_app_info(app: ASGIApp, app_version: Optional[str] = None, openapi_url: Optional[str] = None) -> Dict[str, Any]:
+def _get_app_info(app: ASGIApp, app_version: Optional[str] = None, openapi_url: Optional[str] = None) -> dict[str, Any]:
     app_info: Dict[str, Any] = {}
     if openapi_url and (openapi := _get_openapi(app, openapi_url)):
         app_info["openapi"] = openapi
@@ -170,13 +150,13 @@ def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
         response.raise_for_status()
         return response.text
 
-def _get_endpoint_info(app: ASGIApp) -> List[EndpointInfo]:
+def _get_endpoint_info(app: ASGIApp) -> list[EndpointInfo]:
     routes = _get_routes(app)
     schemas = SchemaGenerator({})
     return schemas.get_endpoints(routes)
 
 
-def _get_routes(app: Union[ASGIApp, Router]) -> List[BaseRoute]:
+def _get_routes(app: Union[ASGIApp, Router]) -> list[BaseRoute]:
     if isinstance(app, Router):
         return app.routes
     elif hasattr(app, "app"):

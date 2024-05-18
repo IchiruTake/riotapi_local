@@ -1,16 +1,23 @@
+import itertools
 import logging
 import time
+from asyncio import Queue as AsyncQueue
+from copy import deepcopy
 from datetime import datetime
-from src.log.timezone import GetProgramTimezone
-from typing import Any, Callable
+from queue import Queue as SyncQueue
+from typing import Any
+from typing import Callable
 from uuid import uuid4
-from sqlmodel import Field, SQLModel
+
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Field, SQLModel, create_engine, Session
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.request_counter import RequestCounter, RequestInfo, \
     RequestAnalysis
+from src.backend.riotapi.middlewares.monitor_src.healthcheck.server_counter import ServerErrorCounter, ServerError
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.validation_counter import ValidationErrorCounter, \
     ValidationError
-from src.backend.riotapi.middlewares.monitor_src.healthcheck.server_counter import ServerErrorCounter, ServerError
+from src.log.timezone import GetProgramTimezone
 
 # ========================================================
 REQUEST_TIMEOUT = 10
@@ -20,6 +27,19 @@ INITIAL_SYNC_INTERVAL = 10  # Force to have quick data response
 INITIAL_SYNC_INTERVAL_DURATION = 600  # 10 minutes
 
 GET_TIME_COUNTER: Callable = time.perf_counter
+
+# =========================================================
+# Monitor Server Health - Configuration
+SQLITE_DB: str = "riotapi_monitor.db"
+SQLITE_PARAMS: dict[str, str] = {
+    "timeout": "10",
+    "uri": "true",
+    "cache": "private",
+    "check_same_thread": "true",
+}
+DEBUG: bool = True
+TRANSACTION_BATCH_SIZE: int = 128
+MAX_FAILED_TRANSACTION: int = 3
 
 
 # ========================================================
@@ -90,10 +110,10 @@ class ServerErrorTransaction(SQLModel, table=True):
     error_data_traceback: str
 
 
-class MonitorClientBase:
+class BaseMonitorClient:
 
-    def __init__(self) -> None:
-        super(MonitorClientBase, self).__init__()
+    def __init__(self, queue: SyncQueue | AsyncQueue) -> None:
+        super(BaseMonitorClient, self).__init__()
 
         # Self-enabled
         self.instance_id: str = str(uuid4())
@@ -104,22 +124,27 @@ class MonitorClientBase:
         self.server_error_counter: tuple[ServerErrorCounter, str] = \
             (ServerErrorCounter(), "_server_errors")
 
-        self._app_info_payload: dict[str, Any] | None = None
-        self._app_info_sent: bool = False
+        # Save monitoring health of the server by using SQLite database
+        self._queue: SyncQueue | AsyncQueue = queue
+        self._monitor_sqlite_datapath: str = SQLITE_DB
+        params = "&".join([f"{k}={v}" for k, v in SQLITE_PARAMS.items()])
+        self._engine = create_engine(f"sqlite:///file:{self._monitor_sqlite_datapath}?{params}", echo=DEBUG)
+        SQLModel.metadata.create_all(self._engine)
+
         self._start_time: float = GET_TIME_COUNTER()
 
     def create_message(self) -> dict[str, Any]:
         return {"instance_id": self.instance_id, "transaction_uuid": str(uuid4())}
 
     def list_transaction_payload(self) -> list[str]:
-        return [self.request_counter[1], self.validation_error_counter[1], self.server_error_counter[1] ]
+        return [self.request_counter[1], self.validation_error_counter[1], self.server_error_counter[1]]
 
     @property
     def sync_interval(self) -> float:
         diff_time: float = GET_TIME_COUNTER() - self._start_time
         return SYNC_INTERVAL if diff_time > INITIAL_SYNC_INTERVAL_DURATION else INITIAL_SYNC_INTERVAL
 
-    def export(self) -> dict[str, Any]:
+    def _export(self) -> dict[str, Any]:
         logging.info("Monitoring data are exporting.")
         current_time = datetime.now(tz=GetProgramTimezone()).strftime("%Y%m%d %H%M%S")
         payload = self.create_message()
@@ -192,3 +217,61 @@ class MonitorClientBase:
             payload[self.server_error_counter[1]].append(transaction)
 
         return payload
+
+    def proceed_data(self) -> None:
+        self._queue.put_nowait((GET_TIME_COUNTER(), self._export()))
+        transaction_tables: list[str] = self.list_transaction_payload()
+        placeholder = []
+
+        # Iterate through the queue to process the data
+        while not self._queue.empty():
+            payload_time, payload = self._queue.get_nowait()
+            payload_if_failed: bool = False
+            for table in transaction_tables:
+                transactions = payload.get(table, [])
+                if not transactions:  # Skip if there is no transaction data to be added
+                    continue
+                failed_lst = []
+
+                with Session(self._engine) as ss:
+                    with ss.begin():
+                        for batch in itertools.batched(transactions, TRANSACTION_BATCH_SIZE):
+                            try:
+                                ss.add_all(batch)
+                            except SQLAlchemyError as e:
+                                ss.rollback()
+                                logging.exception(e, exc_info=True)
+                                failed_lst.extend(deepcopy(batch))
+                                payload_if_failed = True
+                            else:
+                                ss.commit()
+                if not failed_lst:
+                    del payload[table]
+                else:
+                    payload[table] = failed_lst
+
+            # If no failed transactions, then proceed to the next payload; otherwise, add back to the queue
+            transaction_id: str = payload["transaction_uuid"]
+            next_payload_time = GET_TIME_COUNTER()
+            logging.info(f"Proceeding the payload of transaction {transaction_id} in "
+                         f"{next_payload_time - payload_time} seconds.")
+            if not payload_if_failed:
+                self._queue.task_done()
+                continue
+
+            # Add back to the queue if there is any failed transactions
+            failed_count: int = payload.get("failed_count", 0) + 1
+            payload["failed_count"] = failed_count
+
+            logging.warning(f"Failed to insert the payload {failed_count} time(s) into the monitoring database "
+                            f"at transaction {transaction_id}")
+            if failed_count > MAX_FAILED_TRANSACTION:
+                logging.error(f"Exceeding the number of retry for this transaction {transaction_id}. Drop the payload.")
+            else:
+                placeholder.append((next_payload_time, payload))
+
+        # Place back the failed transactions
+        for item in placeholder:
+            self._queue.put_nowait(item)
+
+        return None
