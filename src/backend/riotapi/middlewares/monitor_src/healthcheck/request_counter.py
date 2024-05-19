@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import contextlib
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, asdict
 from functools import lru_cache
 from math import floor
@@ -51,10 +51,10 @@ class RequestCounter(BaseCounter):
         self._binTimeMode: bool = binTimeMode
         self._binDataMode: bool = binDataMode
         self.request_counts: Counter[RequestInfo] = Counter()
-        self.response_times: dict[RequestInfo, list[int]] = {}
+        self.response_times: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
 
-        self.request_sizes: dict[RequestInfo, list[int]] = {}
-        self.response_sizes: dict[RequestInfo, list[int]] = {}
+        self.request_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
+        self.response_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
 
     def accumulate(self, consumer: str | None, method: str, path: str, status_code: int,
                    response_time_in_second: float,
@@ -73,18 +73,18 @@ class RequestCounter(BaseCounter):
         request_info = RequestInfo(consumer=consumer, method=method.upper(), path=path, status_code=status_code)
         with self.getLock():
             self.request_counts[request_info] += 1
-            self.response_times.setdefault(request_info, []).append(response_time_as_bin)
+            self.response_times[request_info].append(response_time_as_bin)
             if request_size is not None:
                 with contextlib.suppress(ValueError):
                     request_size_as_bin: int = _castToBin(int(request_size), BIN_DATA_COLUMN,
                                                           binMode=self._binDataMode)
-                    self.request_sizes.setdefault(request_info, []).append(request_size_as_bin)
+                    self.request_sizes[request_info].append(request_size_as_bin)
 
             if response_size is not None:
                 with contextlib.suppress(ValueError):
                     response_size_as_bin: int = _castToBin(int(response_size), BIN_DATA_COLUMN,
                                                            binMode=self._binDataMode)
-                    self.response_sizes.setdefault(request_info, []).append(response_size_as_bin)
+                    self.response_sizes[request_info].append(response_size_as_bin)
 
     def preview(self) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = []
@@ -95,9 +95,9 @@ class RequestCounter(BaseCounter):
                     raise ValueError("Cannot have '_count' or '_data' in request_info")
                 request_info_asdict["_count"] = count
                 request_info_asdict["_data"] = request_info
-                request_info_asdict["response_times"] = self.response_times[request_info] or []
-                request_info_asdict["request_sizes"] = self.request_sizes[request_info] or []
-                request_info_asdict["response_sizes"] = self.response_sizes[request_info] or []
+                request_info_asdict["response_times"] = self.response_times.get(request_info, [])
+                request_info_asdict["request_sizes"] = self.request_sizes.get(request_info, [])
+                request_info_asdict["response_sizes"] = self.response_sizes.get(request_info, [])
 
                 request_info_asdict["response_time_analysis"] = RequestCounter._analyze(self.response_times[request_info])
                 request_info_asdict["request_size_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
@@ -122,6 +122,10 @@ class RequestCounter(BaseCounter):
 
     @staticmethod
     def _analyze(lst: list[int | float]) -> RequestAnalysis:
+        if len(lst) == 0:
+            return RequestAnalysis(count=0, full_total=0, analysed_count=0, average=0, medium=0,
+                                   std=0, p25=0, p75=0, p95=0, p99=0)
+
         if len(lst) <= MAX_ITEMS_COUNT_FOR_ANALYSIS:
             analysed_lst = lst
         else:

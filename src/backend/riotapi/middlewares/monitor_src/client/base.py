@@ -159,9 +159,9 @@ class BaseMonitorClient:
         _requests: list[dict] = self.request_counter[0].export()
         for rq in _requests:
             _data: RequestInfo = rq["_data"]
-            rp_time: RequestAnalysis = rq["response_times_analysis"]
-            rq_size: RequestAnalysis = rq["request_sizes_analysis"]
-            rp_size: RequestAnalysis = rq["response_sizes_analysis"]
+            rp_time: RequestAnalysis = rq["response_time_analysis"]
+            rq_size: RequestAnalysis = rq["request_size_analysis"]
+            rp_size: RequestAnalysis = rq["response_size_analysis"]
 
             item = RequestInfoTransaction(
                 transaction_uuid=transaction_uuid, export_time=current_time, count=rq["_count"],

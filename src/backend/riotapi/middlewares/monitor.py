@@ -1,5 +1,6 @@
 import json
 import contextlib
+import logging
 import re
 from typing import Any, Callable
 
@@ -101,14 +102,15 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
         path_template, is_handled_path = self.get_path_template(request)
         if any(pth == path_template or patt.match(path_template) for pth, patt in self._unmonitored_paths_regex):
             # Bypass monitoring for unmonitored paths
+            logging.debug(f"Skipping monitoring for path: {path_template}")
             return None
 
         # [2]: Accumulate the request/response data
         consumer = self.get_consumer(request)
         c = self.client.request_counter[0]
         c.accumulate(consumer=consumer, method=request.method, path=path_template, status_code=status_code,
-                     response_time=response_time, request_size=request.headers.get("Content-Length"),
-                     response_size=response.headers.get("Content-Length") if response is not None else None)
+                     response_time_in_second=response_time, request_size=request.headers.get("Content-Length", 0),
+                     response_size=response.headers.get("Content-Length", 0) if response is not None else None)
 
         if (status_code == HTTP_422_UNPROCESSABLE_ENTITY and response is not None and
                 response.headers.get("Content-Type") == "application/json"):
