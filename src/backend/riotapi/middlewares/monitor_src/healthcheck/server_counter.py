@@ -43,7 +43,7 @@ class ServerErrorCounter(BaseCounter):
             )
             self.error_counts[server_error] += 1
 
-    def export(self) -> list[dict[str, Any]]:
+    def preview(self) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = []
         with self.getLock():
             for server_error, count in self.error_counts.items():
@@ -56,6 +56,12 @@ class ServerErrorCounter(BaseCounter):
 
             self.error_counts.clear()
         return data
+
+    def export(self) -> list[dict[str, Any]]:
+        result = self.preview()
+        with self.getLock():
+            self.error_counts.clear()
+        return result
 
     @staticmethod
     def _get_truncated_exception_traceback(exception: BaseException) -> str:

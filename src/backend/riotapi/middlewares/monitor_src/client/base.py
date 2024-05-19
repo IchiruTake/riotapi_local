@@ -44,15 +44,16 @@ MAX_FAILED_TRANSACTION: int = 3
 
 # ========================================================
 class RequestInfoTransaction(SQLModel, table=True):
+    id_counter: int | None = Field(default=None, primary_key=True)
     transaction_uuid: str = Field(index=True)
     export_time: str
     count: int = Field(gt=0)
 
     # Request Data
     request_data_consumer: str | None
-    request_data_method: str
+    request_data_method: str = Field(index=True)
     request_data_path: str = Field(index=True)
-    request_data_status_code: int
+    request_data_status_code: int = Field(index=True)
 
     # Response Time
     response_time_full_total: int
@@ -89,22 +90,24 @@ class RequestInfoTransaction(SQLModel, table=True):
 
 
 class ValidationErrorTransaction(SQLModel, table=True):
-    transaction_uuid: str
+    d_counter: int | None = Field(default=None, primary_key=True)
+    transaction_uuid: str = Field(index=True)
     export_time: str
     count: int
     error_data_consumer: str | None
     error_data_method: str
-    error_data_path: str
+    error_data_path: str = Field(index=True)
     error_data_msg: str
     error_data_type: str
 
 
 class ServerErrorTransaction(SQLModel, table=True):
-    transaction_uuid: str
+    id_counter: int | None = Field(default=None, primary_key=True)
+    transaction_uuid: str = Field(index=True)
     export_time: str
     count: int
     error_data_method: str
-    error_data_path: str
+    error_data_path: str = Field(index=True)
     error_data_type: str
     error_data_msg: str
     error_data_traceback: str
@@ -240,7 +243,7 @@ class BaseMonitorClient:
                                 ss.add_all(batch)
                             except SQLAlchemyError as e:
                                 ss.rollback()
-                                logging.exception(e, exc_info=True)
+                                logging.exception(e)
                                 failed_lst.extend(deepcopy(batch))
                                 payload_if_failed = True
                             else:

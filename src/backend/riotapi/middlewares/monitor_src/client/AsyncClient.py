@@ -39,7 +39,7 @@ class AsyncMonitorClient(BaseMonitorClient):
     def stop_sync_loop(self, *args) -> None:
         self._stop_sync_loop = True
 
-    async def handle_shutdown(self) -> None:
+    async def shutdown(self) -> None:
         if self._sync_loop_task is not None:
             self._sync_loop_task.cancel()
         # Send any remaining requests data before exiting

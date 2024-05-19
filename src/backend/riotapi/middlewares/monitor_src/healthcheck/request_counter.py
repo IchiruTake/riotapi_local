@@ -86,7 +86,7 @@ class RequestCounter(BaseCounter):
                                                            binMode=self._binDataMode)
                     self.response_sizes.setdefault(request_info, []).append(response_size_as_bin)
 
-    def export(self) -> list[dict[str, Any]]:
+    def preview(self) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = []
         with self.getLock():
             for request_info, count in self.request_counts.items():
@@ -110,6 +110,15 @@ class RequestCounter(BaseCounter):
             self.request_sizes.clear()
             self.response_sizes.clear()
         return data
+
+    def export(self) -> list[dict[str, Any]]:
+        result = self.preview()
+        with self.getLock():
+            self.request_counts.clear()
+            self.response_times.clear()
+            self.request_sizes.clear()
+            self.response_sizes.clear()
+        return result
 
     @staticmethod
     def _analyze(lst: list[int | float]) -> RequestAnalysis:

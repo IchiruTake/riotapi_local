@@ -3,6 +3,7 @@ from datetime import datetime
 import httpx
 from pydantic import BaseModel, Field
 from httpx import Request, Response
+from pprint import pformat
 from src.log.timezone import GetProgramTimezone
 
 
@@ -10,7 +11,7 @@ async def log_request(request: Request) -> None:
     request.headers['X-Request-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
     msg: str = f"""
 Request to {request.url} by method {request.method}
-- Headers: {request.headers}"""
+- Headers: {pformat(request.headers)}"""
     logging.info(msg)
 
 
@@ -20,10 +21,10 @@ async def log_response(response: Response) -> None:
 Response from {response.request.method} {response.url} with status code {response.status_code}
     - Elapsed: {response.elapsed}
     - Text: {response.text}
-    - JSON: {response.json()}
-    - Headers: {response.headers}
-    - Content: {response.content}
-    - History: {response.history}"""
+    - JSON: {pformat(response.json())}
+    - Headers: {pformat(response.headers)}
+    - Content: {pformat(response.content)}
+    - History: {pformat(response.history)}"""
     if response.status_code >= 400:
         response.raise_for_status()
         logging.warning(msg)
@@ -53,10 +54,12 @@ async def cleanup_riotclient() -> None:
     _RIOT_CLIENTPOOL.clear()
     logging.info("Cleared the Riot client pool.")
 
+
 class RiotClientWrapper(BaseModel):
     HEADERS: dict = Field(default_factory=dict, title="Headers", description="The headers for the HTTP(S) request")
     PARAMS: dict = Field(default_factory=dict, title="Params", description="The params for the HTTP request")
     TIMEOUT: HttpTimeout = Field(title="Timeout", description="The timeout for the HTTP request")
+
 
 def _set_headers_params_timeout(auth: dict | None, timeout: dict | None) -> RiotClientWrapper:
     headers: dict = {

@@ -1,38 +1,76 @@
 import json
 import contextlib
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+import re
+from typing import Any, Callable
 
 from httpx import HTTPStatusError
 from starlette.concurrency import iterate_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import BaseRoute, Match, Router
 from starlette.schemas import EndpointInfo, SchemaGenerator
-from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_422_UNPROCESSABLE_ENTITY
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.common import get_versions
-
-
-if TYPE_CHECKING:
-    from starlette.middleware.base import RequestResponseEndpoint
-    from starlette.requests import Request
-    from starlette.responses import Response
-
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
 __all__ = ["ApitallyMiddleware"]
 
+# =============================================================================
+def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
+    if isinstance(app, Router):
+        app.add_event_handler("shutdown", shutdown_handler)
+    elif hasattr(app, "app"):
+        _register_shutdown_handler(app.app, shutdown_handler)
 
+def _list_routes(app: ASGIApp | Router) -> list[BaseRoute]:
+    if isinstance(app, Router):
+        return app.routes
+    elif hasattr(app, "app"):
+        return _list_routes(app.app)
+    return []   # pragma: no cover
+
+def _list_endpoints(app: ASGIApp | Router) -> list[EndpointInfo]:
+    routes = _list_routes(app)
+    schemas = SchemaGenerator({})
+    return schemas.get_endpoints(routes)
+
+def analyze_app(app: ASGIApp, openapi_url: str | None = None) -> dict[str, Any]:
+    app_info: dict[str, Any] = {}
+    if openapi_url and (openapi := _get_openapi(app, openapi_url)):
+        app_info["openapi"] = openapi
+    if endpoints := _list_endpoints(app):
+        app_info["paths"] = [{"path": endpoint.path, "method": endpoint.http_method} for endpoint in endpoints]
+    app_info["versions"] = get_versions("fastapi", "starlette", app_version=None)
+    app_info["client"] = "python:starlette"
+    return app_info
+
+def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
+    with contextlib.suppress(HTTPStatusError):
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get(openapi_url)
+        response.raise_for_status()
+        return response.text
+
+
+# =============================================================================
 class ApitallyMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, filter_unhandled_paths: bool = True,
-                 identify_consumer_callback: Optional[Callable[[Request], Optional[str]]] = None,):
-        self.filter_unhandled_paths = filter_unhandled_paths
+    def __init__(self, app: ASGIApp, unmonitored_paths: list[str] | None,
+                 identify_consumer_callback: Callable[[Request], str | None] | None = None):
+        self.unmonitored_paths: list[str] = unmonitored_paths or []
+        self._unmonitored_paths_regex: list[tuple[str, re.Pattern]] = \
+            [(path, re.compile(path)) for path in (unmonitored_paths or [])]
+        self.app_info: dict = analyze_app(app)
         self.identify_consumer_callback = identify_consumer_callback
         self.client: SyncMonitorClient | AsyncMonitorClient = AsyncMonitorClient()
         self.client.start_sync_loop()
-        _register_shutdown_handler(app, self.client.handle_shutdown)
+        if hasattr(self.client, "shutdown") and callable(self.client.shutdown):
+            _register_shutdown_handler(app, self.client.shutdown)
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -57,47 +95,32 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
             )
         return response
 
-    async def add_request(
-        self,
-        request: Request,
-        response: Response | None,
-        status_code: int,
-        response_time: float,
-        exception: BaseException | None = None,
-    ) -> None:
+    async def add_request(self, request: Request, response: Response | None, status_code: int,
+                          response_time: float, exception: BaseException | None = None) -> None:
+        # [1]: Get the path template, for example: /items/{item_id} instead of /items/123
         path_template, is_handled_path = self.get_path_template(request)
-        if is_handled_path or not self.filter_unhandled_paths:
-            consumer = self.get_consumer(request)
-            self.client.request_counter[0].accumulate(
-                consumer=consumer,
-                method=request.method,
-                path=path_template,
-                status_code=status_code,
-                response_time=response_time,
-                request_size=request.headers.get("Content-Length"),
-                response_size=response.headers.get("Content-Length") if response is not None else None,
-            )
-            if (
-                status_code == 422
-                and response is not None
-                and response.headers.get("Content-Type") == "application/json"
-            ):
-                body = await self.get_response_json(response)
-                if isinstance(body, dict) and "detail" in body and isinstance(body["detail"], list):
-                    # Log FastAPI / Pydantic validation errors
-                    self.client.validation_error_counter[0].accumulate(
-                        consumer=consumer,
-                        method=request.method,
-                        path=path_template,
-                        detail=body["detail"],
-                    )
-            if status_code == 500 and exception is not None:
-                self.client.server_error_counter[0].accumulate(
-                    consumer=consumer,
-                    method=request.method,
-                    path=path_template,
-                    exception=exception,
-                )
+        if any(pth == path_template or patt.match(path_template) for pth, patt in self._unmonitored_paths_regex):
+            # Bypass monitoring for unmonitored paths
+            return None
+
+        # [2]: Accumulate the request/response data
+        consumer = self.get_consumer(request)
+        c = self.client.request_counter[0]
+        c.accumulate(consumer=consumer, method=request.method, path=path_template, status_code=status_code,
+                     response_time=response_time, request_size=request.headers.get("Content-Length"),
+                     response_size=response.headers.get("Content-Length") if response is not None else None)
+
+        if (status_code == HTTP_422_UNPROCESSABLE_ENTITY and response is not None and
+                response.headers.get("Content-Type") == "application/json"):
+            body = await self.get_response_json(response)
+            # Log FastAPI / Pydantic validation errors
+            c = self.client.validation_error_counter[0]
+            c.accumulate(consumer=consumer, method=request.method, path=path_template, detail=body["detail"])
+
+        if status_code == 500 and exception is not None:
+            # Log server errors
+            c = self.client.server_error_counter[0]
+            c.accumulate(consumer=consumer, method=request.method, path=path_template, exception=exception)
 
     @staticmethod
     async def get_response_json(response: Response) -> Any:
@@ -130,42 +153,3 @@ class ApitallyMiddleware(BaseHTTPMiddleware):
             if consumer_identifier is not None:
                 return str(consumer_identifier)
         return None
-
-
-def _get_app_info(app: ASGIApp, app_version: Optional[str] = None, openapi_url: Optional[str] = None) -> dict[str, Any]:
-    app_info: Dict[str, Any] = {}
-    if openapi_url and (openapi := _get_openapi(app, openapi_url)):
-        app_info["openapi"] = openapi
-    if endpoints := _get_endpoint_info(app):
-        app_info["paths"] = [{"path": endpoint.path, "method": endpoint.http_method} for endpoint in endpoints]
-    app_info["versions"] = get_versions("fastapi", "starlette", app_version=app_version)
-    app_info["client"] = "python:starlette"
-    return app_info
-
-
-def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
-    with contextlib.suppress(HTTPStatusError):
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.get(openapi_url)
-        response.raise_for_status()
-        return response.text
-
-def _get_endpoint_info(app: ASGIApp) -> list[EndpointInfo]:
-    routes = _get_routes(app)
-    schemas = SchemaGenerator({})
-    return schemas.get_endpoints(routes)
-
-
-def _get_routes(app: Union[ASGIApp, Router]) -> list[BaseRoute]:
-    if isinstance(app, Router):
-        return app.routes
-    elif hasattr(app, "app"):
-        return _get_routes(app.app)
-    return []  # pragma: no cover
-
-
-def _register_shutdown_handler(app: Union[ASGIApp, Router], shutdown_handler: Callable[[], Any]) -> None:
-    if isinstance(app, Router):
-        app.add_event_handler("shutdown", shutdown_handler)
-    elif hasattr(app, "app"):
-        _register_shutdown_handler(app.app, shutdown_handler)

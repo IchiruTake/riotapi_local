@@ -1,6 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass, asdict
-from typing import Any, Tuple
+from typing import Any
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
@@ -36,16 +36,22 @@ class ValidationErrorCounter(BaseCounter):
                 except (KeyError, TypeError):  # pragma: no cover
                     pass
 
-    def export(self) -> list[dict[str, Any]]:
+    def preview(self) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = []
         with self.getLock():
             for validation_error, count in self.error_counts.items():
                 validation_error_asdict = asdict(validation_error)
                 if "_count" in validation_error_asdict or "_data" in validation_error_asdict:
-                    raise ValueError("Cannot have '_count' in validation_error")
+                    raise ValueError("Cannot have '_count' or '_data' in validation_error")
                 validation_error_asdict["_count"] = count
                 validation_error_asdict["_data"] = validation_error
                 data.append(validation_error_asdict)
 
             self.error_counts.clear()
         return data
+
+    def export(self) -> list[dict[str, Any]]:
+        result = self.preview()
+        with self.getLock():
+            self.error_counts.clear()
+        return result

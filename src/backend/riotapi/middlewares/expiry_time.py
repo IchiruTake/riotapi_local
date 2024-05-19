@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Callable
 
 from fastapi import HTTPException, Request
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 
 class ExpiryTimeMiddleware(BaseHTTPMiddleware):
@@ -10,7 +10,7 @@ class ExpiryTimeMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.deadline: datetime | Callable = deadline
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         # Check how many requests has been processed
         deadline: datetime = self.deadline if isinstance(self.deadline, datetime) else self.deadline()
         if datetime.now(tz=deadline.tzinfo) > deadline:

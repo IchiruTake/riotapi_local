@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import Callable
 
 from fastapi import FastAPI, Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from src.utils.static import MINUTE
 
@@ -25,7 +25,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         self.num_processed_requests: int = 0
         self.last_request_time: float = self._operator()
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         # Check how many requests has been processed
         current_time = self._operator()
         diff_time: float = current_time - self.last_request_time

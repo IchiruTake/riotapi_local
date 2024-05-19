@@ -11,5 +11,8 @@ class BaseCounter:
     def accumulate(self, *args, **kwargs):
         raise NotImplementedError("accumulate() method must be implemented in the subclass")
 
+    def preview(self, *args, **kwargs):
+        raise NotImplementedError("preview() method must be implemented in the subclass")
+
     def export(self):
         raise NotImplementedError("export() method must be implemented in the subclass")
