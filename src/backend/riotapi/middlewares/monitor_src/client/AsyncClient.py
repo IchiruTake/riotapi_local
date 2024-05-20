@@ -28,7 +28,6 @@ class AsyncMonitorClient(BaseMonitorClient):
     async def _run_sync_loop(self) -> None:
         while not self._stop_sync_loop:
             try:
-                logging.info("Pushing data to the monitor server")
                 time_start: float = GET_TIME_COUNTER()
                 self.proceed_data()
                 next_stop: int = max(0, ceil(self.sync_interval - (GET_TIME_COUNTER() - time_start)))

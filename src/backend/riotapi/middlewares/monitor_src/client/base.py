@@ -220,6 +220,7 @@ class BaseMonitorClient:
         return payload
 
     def proceed_data(self) -> None:
+        logging.info("Pushing data to the monitor server")
         self._queue.put_nowait((GET_TIME_COUNTER(), self._export()))
         transaction_tables: list[str] = self.list_transaction_payload()
         placeholder = []

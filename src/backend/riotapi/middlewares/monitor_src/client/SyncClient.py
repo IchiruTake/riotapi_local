@@ -37,7 +37,6 @@ class SyncMonitorClient(BaseMonitorClient):
                 try:
                     diff_time: float = GET_TIME_COUNTER() - last_sync_time
                     if diff_time >= self.sync_interval:
-                        logging.info("Pushing data to the monitor server")
                         self.proceed_data()
                         # Update the last sync time
                         last_sync_time = GET_TIME_COUNTER()
