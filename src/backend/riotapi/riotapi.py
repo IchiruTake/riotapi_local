@@ -2,32 +2,25 @@ import asyncio
 import logging
 import random
 import string
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from functools import lru_cache
 from zoneinfo import ZoneInfo
-import yaml
-
 
 import toml
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp
+
 from src.backend.riotapi.client.httpx_riotclient import cleanup_riotclient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
 from src.backend.riotapi.middlewares.monitor import ApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
-from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
-from src.utils.static import DAY, RIOTAPI_LOG_CFG_FILE, RIOTAPI_ENV_CFG_FILE
-from contextlib import asynccontextmanager
 from src.backend.riotapi.routes.account import router as account_router
+from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
+from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE
 
-from starlette.types import ASGIApp
-
-from src.log.log import presetDefaultLogging
-
-with open(RIOTAPI_LOG_CFG_FILE, 'r') as riotapi_env:
-    data = yaml.safe_load(riotapi_env)
-    presetDefaultLogging(data['LOGGER'])
 
 # import os
 # import sys
@@ -69,7 +62,7 @@ class USER_CFG(BaseModel):
     AUTH: dict = Field(default_factory=dict, title="Authorization", description="The API key for the Riot API")
 
 
-def reload_authentication_for_router(application: FastAPI, lst_routers: list[APIRouter] | None = None) -> int:
+def reload_authentication_for_router(application: FastAPI) -> int:
     with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_env:
         config = toml.load(riotapi_env)
         # Set tracking users
@@ -84,53 +77,55 @@ def reload_authentication_for_router(application: FastAPI, lst_routers: list[API
         }
         t = USER_CFG(**user_cfg)
         application.default_user_cfg = t
-        if lst_routers:
+
+        if hasattr(application, "lst_routers"):
+            logging.debug("Reloading the authentication for the routers also ...")
+            lst_routers = application.lst_routers
             for rt in lst_routers:
                 rt.default_user = application.default_user
                 rt.default_user_cfg = t
 
         # Return the refresh rate for next reload
-        return config["riotapi"].get("REFRESH_RATE", 300)   # 5 minutes
+        return config["riotapi"].get("REFRESH_RATE", 300)  # 5 minutes
 
 
 @asynccontextmanager
-async def riotapi_lifespan(app: ASGIApp | FastAPI):
+async def riotapi_lifespan(application: ASGIApp | FastAPI):
     # On-Startup
-    from src.log.log import presetDefaultLogging
-    with open(RIOTAPI_LOG_CFG_FILE, 'r') as riotapi_env:
-        data = yaml.safe_load(riotapi_env)
-        presetDefaultLogging(data['LOGGER'])
-
     logging.info("The logging mechanism has been initialized ...")
-    MAX_REPETITIONS: int = -1           # -1: infinite loop
+    MAX_REPETITIONS: int = -1  # -1: infinite loop
     CURRENT_REPETITIONS: int = 0
 
-    async def reload_dependency_resources():
+    async def _reload_dependency_resources():
         nonlocal MAX_REPETITIONS, CURRENT_REPETITIONS
         if MAX_REPETITIONS < -1:
             raise ValueError("The maximum repetitions must be greater than or equal to -1")
 
         while MAX_REPETITIONS == -1 or CURRENT_REPETITIONS < MAX_REPETITIONS:
-            next_trigger: int = reload_authentication_for_router(app, lst_routers=None)
+            next_trigger: int = reload_authentication_for_router(application)
             await cleanup_riotclient()
-            logging.info(f"Reloaded the authentication in the {RIOTAPI_ENV_CFG_FILE} file for the application")
-            if CURRENT_REPETITIONS != MAX_REPETITIONS:
-                logging.info(f"The next reload will be triggered in the next {next_trigger} seconds ...")
+            logging.info(f"Reloaded the authentication, and pool cleanup in the {RIOTAPI_ENV_CFG_FILE} file "
+                         f"for the resource update")
+
             if MAX_REPETITIONS != -1:
                 CURRENT_REPETITIONS += 1
-            if next_trigger > 0:
+            if CURRENT_REPETITIONS != MAX_REPETITIONS and next_trigger > 0:
+                logging.info(f"The next reload will be triggered in the next {next_trigger} seconds ...")
                 await asyncio.sleep(next_trigger)
 
-    # await asyncio.create_task(reload_dependency_resources())
-    logging.info("The dependency function has been setup. Starting the application ...")
+    # Don't push await for daemon task
+    loop = asyncio.get_event_loop()
+    loop.create_task(_reload_dependency_resources(), name="Reload Dependency Resources")
 
     # Application Initialization
+    logging.info("Starting the application ...")
     yield
 
     # Clean up and release the resources
     await cleanup_riotclient()
-    MAX_REPETITIONS = CURRENT_REPETITIONS   # Stop the loop
+    MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
     logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
+
 
 # ==================================================================================================
 # FastAPI declaration and Middlewares
@@ -198,7 +193,6 @@ app: FastAPI = FastAPI(
     # include_in_schema=FASTAPI_CONFIG.get('INCLUDE_IN_SCHEMA', True),
 )
 
-
 # ==================================================================================================
 logging.info("The FastAPI application has been initialized. Adding the middlewares ...")
 SECRET_KEY = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
@@ -212,8 +206,8 @@ with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
         MAX_REQUESTS: int = value["MAX_REQUESTS"]
         REQUESTS_INTERVAL: int = value["REQUESTS_INTERVAL"]
         app.add_middleware(RateLimiterMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
-app.add_middleware(ApitallyMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
-                   identify_consumer_callback=None)
+# app.add_middleware(ApitallyMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
+#                    identify_consumer_callback=None)
 logging.info("The middlewares have been added to the application ...")
 
 # ==================================================================================================
@@ -223,7 +217,7 @@ APIROUTER_MAPPING: dict[str, APIRouter] = {
 }
 for path, router in APIROUTER_MAPPING.items():
     app.include_router(router, prefix=path)
-reload_authentication_for_router(app, lst_routers=[r for _, r in APIROUTER_MAPPING.items()])
+app.lst_routers = [r for _, r in APIROUTER_MAPPING.items()]
 logging.info("The routers have been included in the application, adding the dependency resource is done ...")
 
 

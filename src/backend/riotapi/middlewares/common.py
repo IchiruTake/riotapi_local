@@ -1,7 +1,6 @@
-import sys
 import contextlib
+import sys
 from importlib.metadata import PackageNotFoundError, version
-
 from typing import Dict, Optional
 
 

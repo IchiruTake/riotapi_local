@@ -1,5 +1,5 @@
-import json
 import contextlib
+import json
 import logging
 import re
 from typing import Any, Callable
@@ -7,20 +7,22 @@ from typing import Any, Callable
 from httpx import HTTPStatusError
 from starlette.concurrency import iterate_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Match, Router
 from starlette.schemas import EndpointInfo, SchemaGenerator
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_422_UNPROCESSABLE_ENTITY
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
-from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
-from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
-from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
+
 from src.backend.riotapi.middlewares.common import get_versions
-from starlette.middleware.base import RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
+from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
+from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
+from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 
 __all__ = ["ApitallyMiddleware"]
+
 
 # =============================================================================
 def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
@@ -29,17 +31,20 @@ def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable
     elif hasattr(app, "app"):
         _register_shutdown_handler(app.app, shutdown_handler)
 
+
 def _list_routes(app: ASGIApp | Router) -> list[BaseRoute]:
     if isinstance(app, Router):
         return app.routes
     elif hasattr(app, "app"):
         return _list_routes(app.app)
-    return []   # pragma: no cover
+    return []  # pragma: no cover
+
 
 def _list_endpoints(app: ASGIApp | Router) -> list[EndpointInfo]:
     routes = _list_routes(app)
     schemas = SchemaGenerator({})
     return schemas.get_endpoints(routes)
+
 
 def analyze_app(app: ASGIApp, openapi_url: str | None = None) -> dict[str, Any]:
     app_info: dict[str, Any] = {}
@@ -50,6 +55,7 @@ def analyze_app(app: ASGIApp, openapi_url: str | None = None) -> dict[str, Any]:
     app_info["versions"] = get_versions("fastapi", "starlette", app_version=None)
     app_info["client"] = "python:starlette"
     return app_info
+
 
 def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
     with contextlib.suppress(HTTPStatusError):

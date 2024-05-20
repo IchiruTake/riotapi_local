@@ -20,10 +20,8 @@ from src.backend.riotapi.middlewares.monitor_src.healthcheck.validation_counter 
 from src.log.timezone import GetProgramTimezone
 
 # ========================================================
-REQUEST_TIMEOUT = 10
-MAX_QUEUE_TIME = 3600
-SYNC_INTERVAL = 60  # 1 minute
-INITIAL_SYNC_INTERVAL = 10  # Force to have quick data response
+SYNC_INTERVAL = 90  # 1.5 minutes
+INITIAL_SYNC_INTERVAL = 15  # Force to have quick data response
 INITIAL_SYNC_INTERVAL_DURATION = 600  # 10 minutes
 
 GET_TIME_COUNTER: Callable = time.perf_counter
@@ -32,7 +30,7 @@ GET_TIME_COUNTER: Callable = time.perf_counter
 # Monitor Server Health - Configuration
 SQLITE_DB: str = "riotapi_monitor.db"
 SQLITE_PARAMS: dict[str, str] = {
-    "timeout": "10",
+    "timeout": "15",
     "uri": "true",
     "cache": "private",
     "check_same_thread": "true",
@@ -256,8 +254,8 @@ class BaseMonitorClient:
             # If no failed transactions, then proceed to the next payload; otherwise, add back to the queue
             transaction_id: str = payload["transaction_uuid"]
             next_payload_time = GET_TIME_COUNTER()
-            logging.info(f"Proceeding the payload of transaction {transaction_id} in "
-                         f"{next_payload_time - payload_time} seconds.")
+            logging.info(f"Proceeding the transaction payload {transaction_id} in "
+                         f"{1e3 * (next_payload_time - payload_time):.2f} milli-seconds.")
             if not payload_if_failed:
                 self._queue.task_done()
                 continue

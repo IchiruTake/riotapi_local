@@ -1,11 +1,12 @@
 import logging
 from time import perf_counter
-from src.backend.riotapi.client.httpx_riotclient import get_riotclient
-from fastapi.routing import APIRouter
-from fastapi.exceptions import HTTPException
-from requests import Response
-from pydantic import BaseModel, Field
+
 from cachetools.func import ttl_cache
+from fastapi.exceptions import HTTPException
+from fastapi.routing import APIRouter
+from requests import Response
+
+from src.backend.riotapi.client.httpx_riotclient import get_riotclient
 
 
 def riotapi_region_routing(user_region: str) -> str:
@@ -32,6 +33,7 @@ def riotapi_region_routing(user_region: str) -> str:
         logging.error(f"Invalid region: {user_region}")
         raise ValueError(f"Invalid region: {user_region}")
     return mapping[user_region]
+
 
 # ==================================================================================================
 

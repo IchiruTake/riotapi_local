@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime
-import httpx
-from pydantic import BaseModel, Field
-from httpx import Request, Response
 from pprint import pformat
+
+import httpx
+from httpx import Request, Response
+from pydantic import BaseModel, Field
+
 from src.log.timezone import GetProgramTimezone
 
 
@@ -43,8 +45,10 @@ class HttpTimeout(BaseModel):
 
 _RIOT_CLIENTPOOL: dict[str, httpx.AsyncClient] = {}
 
+
 def region_to_host(region: str) -> str:
     return f"https://{region.lower()}.api.riotgames.com"
+
 
 async def cleanup_riotclient() -> None:
     for region, client in _RIOT_CLIENTPOOL.items():

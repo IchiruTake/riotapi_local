@@ -1,11 +1,12 @@
-import logging
-import numpy as np
 import contextlib
+import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, asdict
 from functools import lru_cache
 from math import floor
 from typing import Any
+
+import numpy as np
 
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.counter import BaseCounter
 
@@ -51,10 +52,10 @@ class RequestCounter(BaseCounter):
         self._binTimeMode: bool = binTimeMode
         self._binDataMode: bool = binDataMode
         self.request_counts: Counter[RequestInfo] = Counter()
-        self.response_times: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
+        self.response_times: dict[RequestInfo, list[int]] = defaultdict(lambda: [])
 
-        self.request_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
-        self.response_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda : [])
+        self.request_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda: [])
+        self.response_sizes: dict[RequestInfo, list[int]] = defaultdict(lambda: [])
 
     def accumulate(self, consumer: str | None, method: str, path: str, status_code: int,
                    response_time_in_second: float,
@@ -99,9 +100,11 @@ class RequestCounter(BaseCounter):
                 request_info_asdict["request_sizes"] = self.request_sizes.get(request_info, [])
                 request_info_asdict["response_sizes"] = self.response_sizes.get(request_info, [])
 
-                request_info_asdict["response_time_analysis"] = RequestCounter._analyze(self.response_times[request_info])
+                request_info_asdict["response_time_analysis"] = RequestCounter._analyze(
+                    self.response_times[request_info])
                 request_info_asdict["request_size_analysis"] = RequestCounter._analyze(self.request_sizes[request_info])
-                request_info_asdict["response_size_analysis"] = RequestCounter._analyze(self.response_sizes[request_info])
+                request_info_asdict["response_size_analysis"] = RequestCounter._analyze(
+                    self.response_sizes[request_info])
 
                 data.append(request_info_asdict)
 

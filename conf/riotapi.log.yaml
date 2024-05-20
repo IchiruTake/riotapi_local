@@ -23,7 +23,7 @@ LOGGER:
 
     OUT_STREAM_HANDLER: # Recommended to not alter this setting.
         ENABLED: true
-        LEVEL: 20 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
+        LEVEL: 10 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
         STREAM: "ext://sys.stdout"    # ext://sys.stdout or ext://sys.stderr or None
         LOG_FORMAT: '[%(name)s-BASIC-OUTSTREAM] [%(asctime)s] %(levelname)s: %(message)s'
 

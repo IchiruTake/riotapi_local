@@ -18,7 +18,7 @@ class SyncMonitorClient(BaseMonitorClient):
 
     def start_sync_loop(self) -> None:
         logging.info("Starting sync loop for monitor client")
-        self._stop_sync_loop.clear()        # Force to be False
+        self._stop_sync_loop.clear()  # Force to be False
         if self._thread is None or not self._thread.is_alive():
             logging.info("A daemon thread is created to run the sync loop")
             self._thread = Thread(target=self._run_sync_loop, daemon=True)
@@ -37,19 +37,20 @@ class SyncMonitorClient(BaseMonitorClient):
                 try:
                     diff_time: float = GET_TIME_COUNTER() - last_sync_time
                     if diff_time >= self.sync_interval:
-                        logging.info("Proceeding data to the monitor server")
+                        logging.info("Pushing data to the monitor server")
                         self.proceed_data()
                         # Update the last sync time
                         last_sync_time = GET_TIME_COUNTER()
                     else:
-                        logging.info(f"Waiting for the next sync interval at {self.sync_interval - diff_time} seconds")
+                        logging.info(f"Waiting for the next sync interval at {self.sync_interval - diff_time:.2f} "
+                                     f"seconds")
 
                     # Small random sleep to avoid sync loop to be too predictable
                     time.sleep(random.uniform(0.25, 0.75))
                 except Exception as e:  # pragma: no cover
                     logging.exception(e)
         finally:
-            logging.info("Proceeding last data to the monitor server before stopping the sync loop")
+            logging.info("Pushing last data to the monitor server before stopping the sync loop")
             self.proceed_data()
 
     def stop_sync_loop(self, *args) -> None:
