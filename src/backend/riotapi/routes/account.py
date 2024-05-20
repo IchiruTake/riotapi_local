@@ -50,7 +50,7 @@ router = APIRouter()
 
 @ttl_cache(maxsize=16, ttl=300, timer=perf_counter, typed=True)
 @router.get("/{username}/{tagLine}", response_model=RiotAccount)
-async def get_riot_account(username: str, tagLine: str):
+async def get_riot_account(username: str, tagLine: str, region: str):
     """
     Get the Riot account information of a player by their username and tagline.
 
@@ -66,7 +66,7 @@ async def get_riot_account(username: str, tagLine: str):
     """
     USERCFG = router.default_user_cfg
     try:
-        region: str = riotapi_region_routing(USERCFG.REGION)
+        region: str = riotapi_region_routing(region or USERCFG.REGION)
     except ValueError:
         return HTTPException(status_code=400, detail="Invalid region")
     client = get_riotclient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
