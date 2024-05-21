@@ -17,7 +17,7 @@ from src.backend.riotapi.client.httpx_riotclient import cleanup_riotclient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
 from src.backend.riotapi.middlewares.monitor import ApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
-from src.backend.riotapi.routes.account import router as account_router
+from src.backend.riotapi.routes.AccountV1 import router as account_router
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
 from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE
 
