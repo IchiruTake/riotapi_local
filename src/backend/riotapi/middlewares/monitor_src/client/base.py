@@ -12,6 +12,8 @@ from uuid import uuid4
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Field, SQLModel, create_engine, Session
 
+from src.utils.static import (SYNC_INTERVAL, INITIAL_SYNC_INTERVAL, INITIAL_SYNC_INTERVAL_DURATION, SQLITE_DB,
+                              SQLITE_PARAMS, TRANSACTION_BATCH_SIZE, MAX_FAILED_TRANSACTION)
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.request_counter import RequestCounter, RequestInfo, \
     RequestAnalysis
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.server_counter import ServerErrorCounter, ServerError
@@ -20,24 +22,11 @@ from src.backend.riotapi.middlewares.monitor_src.healthcheck.validation_counter 
 from src.log.timezone import GetProgramTimezone
 
 # ========================================================
-SYNC_INTERVAL = 90  # 1.5 minutes
-INITIAL_SYNC_INTERVAL = 15  # Force to have quick data response
-INITIAL_SYNC_INTERVAL_DURATION = 600  # 10 minutes
-
+# Timer Triggering
 GET_TIME_COUNTER: Callable = time.perf_counter
 
-# =========================================================
 # Monitor Server Health - Configuration
-SQLITE_DB: str = "riotapi_monitor.db"
-SQLITE_PARAMS: dict[str, str] = {
-    "timeout": "15",
-    "uri": "true",
-    "cache": "private",
-    "check_same_thread": "true",
-}
 DEBUG: bool = True
-TRANSACTION_BATCH_SIZE: int = 128
-MAX_FAILED_TRANSACTION: int = 3
 
 
 # ========================================================
