@@ -4,7 +4,7 @@ LOGGER:
     DATEFMT: '%Y-%m-%d %H:%M:%S %z'
     # FORMAT: '[%(asctime)s] %(levelname)s: %(message)s'
     # STREAM: ext://sys.stdout    # ext://sys.stdout or ext://sys.stderr or None
-    ENCODING: utf-8
+    ENCODING: utf-32
     ERRORS: None
 
     DEBUG_FILE_HANDLER:
@@ -16,7 +16,7 @@ LOGGER:
         ROTATE_EVERY_SEC: false
 
         LOG_FORMAT: '[%(name)s-BASIC-DEBUGFILE] [%(asctime)s] [%(levelname)s] [File=%(pathname)s ; Line=%(lineno)d]: %(message)s'
-        ENCODING: utf-8
+        ENCODING: utf-32
         DELAY: false
         ERRORS: None
         LEVEL: 10 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL

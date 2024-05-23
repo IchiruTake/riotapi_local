@@ -128,6 +128,7 @@ async def riotapi_lifespan(application: ASGIApp | FastAPI):
     await cleanup_riotclient()
     MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
     logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
+    logging.shutdown()
 
 
 # ==================================================================================================

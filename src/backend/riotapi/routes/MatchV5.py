@@ -4,14 +4,12 @@ from typing import Annotated
 
 from cachetools.func import ttl_cache
 from fastapi import Path, Query
-from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
-from requests import Response
-from starlette.status import HTTP_400_BAD_REQUEST
 from pydantic import BaseModel, Field
+
 from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
     QueryToRiotAPI
-from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 
 
 # ==================================================================================================
@@ -26,6 +24,7 @@ class MetadataDto(BaseModel):
     dataVersion: str = Field(..., description="Match data version.")
     matchId: str = Field(..., description="Match id.")
     participants: list[str] = Field(..., description="A list of participant PUUIDs.")
+
 
 class MissionsDto(BaseModel):
     playerScore0: int
@@ -46,6 +45,7 @@ class ObjectiveDto(BaseModel):
     first: bool
     kills: int
 
+
 class ObjectivesDto(BaseModel):
     baron: ObjectiveDto
     champion: ObjectiveDto
@@ -55,15 +55,18 @@ class ObjectivesDto(BaseModel):
     riftHerald: ObjectiveDto
     tower: ObjectiveDto
 
+
 class BanDto(BaseModel):
     championId: int
     pickTurn: int
+
 
 class TeamDto(BaseModel):
     bans: list[BanDto]
     objectives: ObjectivesDto
     teamId: int
     win: bool
+
 
 class PerkStyleSelectionDto(BaseModel):
     perk: int
@@ -90,219 +93,113 @@ class PerksDto(BaseModel):
 
 
 class ChallengesDto(BaseModel):
-    12
-    AssistStreakCount
-    int
-    abilityUses
-    int
-    acesBefore15Minutes
-    int
-    alliedJungleMonsterKills
-    int
-    baronTakedowns
-    int
-    blastConeOppositeOpponentCount
-    int
-    bountyGold
-    int
-    buffsStolen
-    int
-    completeSupportQuestInTime
-    int
-    controlWardsPlaced
-    int
-    damagePerMinute
-    float
-    damageTakenOnTeamPercentage
-    float
-    dancedWithRiftHerald
-    int
-    deathsByEnemyChamps
-    int
-    dodgeSkillShotsSmallWindow
-    int
-    doubleAces
-    int
-    dragonTakedowns
-    int
-    legendaryItemUsed
-    List[int]
-    effectiveHealAndShielding
-    float
-    elderDragonKillsWithOpposingSoul
-    int
-    elderDragonMultikills
-    int
-    enemyChampionImmobilizations
-    int
-    enemyJungleMonsterKills
-    int
-    epicMonsterKillsNearEnemyJungler
-    int
-    epicMonsterKillsWithin30SecondsOfSpawn
-    int
-    epicMonsterSteals
-    int
-    epicMonsterStolenWithoutSmite
-    int
-    firstTurretKilled
-    int
-    firstTurretKilledTime
-    float
-    flawlessAces
-    int
-    fullTeamTakedown
-    int
-    gameLength
-    float
-    getTakedownsInAllLanesEarlyJungleAsLaner
-    int
-    goldPerMinute
-    float
-    hadOpenNexus
-    int
-    immobilizeAndKillWithAlly
-    int
-    initialBuffCount
-    int
-    initialCrabCount
-    int
-    jungleCsBefore10Minutes
-    int
-    junglerTakedownsNearDamagedEpicMonster
-    int
-    kda
-    float
-    killAfterHiddenWithAlly
-    int
-    killedChampTookFullTeamDamageSurvived
-    int
-    killingSprees
-    int
-    killParticipation
-    float
-    killsNearEnemyTurret
-    int
-    killsOnOtherLanesEarlyJungleAsLaner
-    int
-    killsOnRecentlyHealedByAramPack
-    int
-    killsUnderOwnTurret
-    int
-    killsWithHelpFromEpicMonster
-    int
-    knockEnemyIntoTeamAndKill
-    int
-    kTurretsDestroyedBeforePlatesFall
-    int
-    landSkillShotsEarlyGame
-    int
-    laneMinionsFirst10Minutes
-    int
-    lostAnInhibitor
-    int
-    maxKillDeficit
-    int
-    mejaisFullStackInTime
-    int
-    moreEnemyJungleThanOpponent
-    int
-    multiKillOneSpell
-    int
-    multikills
-    int
-    multikillsAfterAggressiveFlash
-    int
-    multiTurretRiftHeraldCount
-    int
-    outerTurretExecutesBefore10Minutes
-    int
-    outnumberedKills
-    int
-    outnumberedNexusKill
-    int
-    perfectDragonSoulsTaken
-    int
-    perfectGame
-    int
-    pickKillWithAlly
-    int
-    poroExplosions
-    int
-    quickCleanse
-    int
-    quickFirstTurret
-    int
-    quickSoloKills
-    int
-    riftHeraldTakedowns
-    int
-    saveAllyFromDeath
-    int
-    scuttleCrabKills
-    int
-    shortestTimeToAceFromFirstTakedown
-    float
-    skillshotsDodged
-    int
-    skillshotsHit
-    int
-    snowballsHit
-    int
-    soloBaronKills
-    int
-    soloKills
-    int
-    stealthWardsPlaced
-    int
-    survivedSingleDigitHpCount
-    int
-    survivedThreeImmobilizesInFight
-    int
-    takedownOnFirstTurret
-    int
-    takedowns
-    int
-    takedownsAfterGainingLevelAdvantage
-    int
-    takedownsBeforeJungleMinionSpawn
-    int
-    takedownsFirstXMinutes
-    int
-    takedownsInAlcove
-    int
-    takedownsInEnemyFountain
-    int
-    teamBaronKills
-    int
-    teamDamagePercentage
-    float
-    teamElderDragonKills
-    int
-    teamRiftHeraldKills
-    int
-    tookLargeDamageSurvived
-    int
-    turretPlatesTaken
-    int
-    turretsTakenWithRiftHerald
-    int
-    turretTakedowns
-    int
-    twentyMinionsIn3SecondsCount
-    int
-    twoWardsOneSweeperCount
-    int
-    unseenRecalls
-    int
-    visionScorePerMinute
-    int
-    wardsGuarded
-    int
-    wardTakedowns
-    int
-    wardTakedownsBefore20M
-    int
+    assistStreakCount12: int = Field(default=None, alias="12AssistStreakCount",
+                                     description="Placeholder for 12AssistStreakCount.")
+    abilityUses: int
+    acesBefore15Minutes: int
+    alliedJungleMonsterKills: int
+    baronTakedowns: int
+    blastConeOppositeOpponentCount: int
+    bountyGold: int
+    buffsStolen: int
+    completeSupportQuestInTime: int
+    controlWardsPlaced: int
+    damagePerMinute: float
+    damageTakenOnTeamPercentage: float
+    dancedWithRiftHerald: int
+    deathsByEnemyChamps: int
+    dodgeSkillShotsSmallWindow: int
+    doubleAces: int
+    dragonTakedowns: int
+    legendaryItemUsed: list[int]
+    effectiveHealAndShielding: float
+    elderDragonKillsWithOpposingSoul: int
+    elderDragonMultikills: int
+    enemyChampionImmobilizations: int
+    enemyJungleMonsterKills: int
+    epicMonsterKillsNearEnemyJungler: int
+    epicMonsterKillsWithin30SecondsOfSpawn: int
+    epicMonsterSteals: int
+    epicMonsterStolenWithoutSmite: int
+    firstTurretKilled: int
+    firstTurretKilledTime: float
+    flawlessAces: int
+    fullTeamTakedown: int
+    gameLength: float
+    getTakedownsInAllLanesEarlyJungleAsLaner: int
+    goldPerMinute: float
+    hadOpenNexus: int
+    immobilizeAndKillWithAlly: int
+    initialBuffCount: int
+    initialCrabCount: int
+    jungleCsBefore10Minutes: int
+    junglerTakedownsNearDamagedEpicMonster: int
+    kda: float
+    killAfterHiddenWithAlly: int
+    killedChampTookFullTeamDamageSurvived: int
+    killingSprees: int
+    killParticipation: float
+    killsNearEnemyTurret: int
+    killsOnOtherLanesEarlyJungleAsLaner: int
+    killsOnRecentlyHealedByAramPack: int
+    killsUnderOwnTurret: int
+    killsWithHelpFromEpicMonster: int
+    knockEnemyIntoTeamAndKill: int
+    kTurretsDestroyedBeforePlatesFall: int
+    landSkillShotsEarlyGame: int
+    laneMinionsFirst10Minutes: int
+    lostAnInhibitor: int
+    maxKillDeficit: int
+    mejaisFullStackInTime: int
+    moreEnemyJungleThanOpponent: int
+    multiKillOneSpell: int
+    multikills: int
+    multikillsAfterAggressiveFlash: int
+    multiTurretRiftHeraldCount: int
+    outerTurretExecutesBefore10Minutes: int
+    outnumberedKills: int
+    outnumberedNexusKill: int
+    perfectDragonSoulsTaken: int
+    perfectGame: int
+    pickKillWithAlly: int
+    poroExplosions: int
+    quickCleanse: int
+    quickFirstTurret: int
+    quickSoloKills: int
+    riftHeraldTakedowns: int
+    saveAllyFromDeath: int
+    scuttleCrabKills: int
+    shortestTimeToAceFromFirstTakedown: float
+    skillshotsDodged: int
+    skillshotsHit: int
+    snowballsHit: int
+    soloBaronKills: int
+    soloKills: int
+    stealthWardsPlaced: int
+    survivedSingleDigitHpCount: int
+    survivedThreeImmobilizesInFight: int
+    takedownOnFirstTurret: int
+    takedowns: int
+    takedownsAfterGainingLevelAdvantage: int
+    takedownsBeforeJungleMinionSpawn: int
+    takedownsFirstXMinutes: int
+    takedownsInAlcove: int
+    takedownsInEnemyFountain: int
+    teamBaronKills: int
+    teamDamagePercentage: float
+    teamElderDragonKills: int
+    teamRiftHeraldKills: int
+    tookLargeDamageSurvived: int
+    turretPlatesTaken: int
+    turretsTakenWithRiftHerald: int
+    turretTakedowns: int
+    twentyMinionsIn3SecondsCount: int
+    twoWardsOneSweeperCount: int
+    unseenRecalls: int
+    visionScorePerMinute: int
+    wardsGuarded: int
+    wardTakedowns: int
+    wardTakedownsBefore20M: int
 
 
 class ParticipantDto(BaseModel):
@@ -491,12 +388,12 @@ class MatchDto(BaseModel):
 
 # ==================================================================================================
 router = APIRouter()
-
+SRC_ROUTE: str = str(__name__).split('.')[-1]
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/by-puuid/{region}/{puuid}", response_model=list[str])
+@router.get("/by-puuid/{puuid}", response_model=list[str])
 async def ListMatches(
-        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)],
+        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)],
         puuid: str,
         startTime: int | None = None,
         endTime: int | None = None,
@@ -540,7 +437,7 @@ async def ListMatches(
         The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
+    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router,
                                                   bypass_region_route=False)
     endpoint: str = MatchV5_Endpoints.ListMatchesByPuuid.format(puuid=puuid)
 
@@ -554,8 +451,8 @@ async def ListMatches(
 @router.get("/{matchId}", response_model=list[str])
 async def GetMatch(
         matchId: str,
-        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
-) -> list[str]:
+        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+) -> MatchDto:
     f"""
     {MatchV5_Endpoints.ListMatchesByPuuid}
     List match ids of a player by puuid.
@@ -591,10 +488,7 @@ async def GetMatch(
         The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
+    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router,
                                                   bypass_region_route=False)
     endpoint: str = MatchV5_Endpoints.GetMatchById.format(matchId=matchId)
-
     return await QueryToRiotAPI(client, endpoint)
-
-

@@ -6,9 +6,10 @@ from fastapi import Path
 from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
+
 from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
-from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, BASE_TTL_MULTIPLIER, EXTENDED_TTL_DURATION
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, BASE_TTL_MULTIPLIER
 
 
 # ==================================================================================================
@@ -67,7 +68,7 @@ def _ProcessChampionMastery(func: Callable):
 async def ListChampionMastery(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> list[ChampionMasteryDto]:
+) -> list[ChampionMasteryDto]:
     f"""
     {ChampionMasteryV4_Endpoints.MasteryByPuuid}
     List all champion mastery entries sorted by number of champion points descending. 
@@ -82,7 +83,7 @@ async def ListChampionMastery(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route="ChampionMasteryV4", router=router,
+    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
                                                   bypass_region_route=True)
     path_endpoint: str = ChampionMasteryV4_Endpoints.MasteryByPuuid.format(puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)
@@ -95,7 +96,7 @@ async def GetChampionMastery(
         puuid: str,
         championId: int,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)],
-    ) -> ChampionMasteryDto:
+) -> ChampionMasteryDto:
     f"""
     {ChampionMasteryV4_Endpoints.MasteryByPuuidAndChampionID}
     Get a champion mastery by player ID and champion ID.
@@ -127,7 +128,7 @@ async def ListTopChampionMastery(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)],
         count: int = 3
-    ) -> list[ChampionMasteryDto]:
+) -> list[ChampionMasteryDto]:
     f"""
     {ChampionMasteryV4_Endpoints.TopMasteryByPuuid}
     Get a player's top champion mastery entries sorted by number of champion points descending.
@@ -155,7 +156,7 @@ async def ListTopChampionMastery(
 async def GetChampionMasteryScore(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> int:
+) -> int:
     f"""
     {ChampionMasteryV4_Endpoints.MasteryScoreByPuuid}
     Get a player's total champion mastery score, which is the sum of individual champion mastery levels.

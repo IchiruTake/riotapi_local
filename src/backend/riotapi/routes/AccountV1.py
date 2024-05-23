@@ -1,13 +1,14 @@
 from time import perf_counter
 from typing import Annotated
-from fastapi import Path, Query
+
 from cachetools.func import ttl_cache
+from fastapi import Path, Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 
 from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
-from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, BASE_TTL_MULTIPLIER, EXTENDED_TTL_DURATION
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 
 
 # ==================================================================================================
@@ -31,6 +32,7 @@ class ActiveShardDto(BaseModel):
 
 # ==================================================================================================
 router = APIRouter()
+SRC_ROUTE: str = str(__name__).split('.')[-1]
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
@@ -38,7 +40,7 @@ router = APIRouter()
 async def GetAccountByRiotId(
         username: str, tagLine: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
-    ):
+    ) -> AccountDto:
     f"""
     {AccountV1_Endpoints.AccountByRiotId}
     Get the Riot account information of a player by their username and tagline.
@@ -56,7 +58,7 @@ async def GetAccountByRiotId(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route="AccountV1", router=router)
+    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.AccountByRiotId.format(userName=username, tagLine=tagLine)
     return await QueryToRiotAPI(client, path_endpoint)
 
@@ -66,7 +68,7 @@ async def GetAccountByRiotId(
 async def GetAccountByPuuid(
         puuid: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
-    ):
+    ) -> AccountDto:
     f"""
     {AccountV1_Endpoints.AccountByPuuid}
     Get the Riot account information of a player by their puuid
@@ -81,7 +83,7 @@ async def GetAccountByPuuid(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route="AccountV1", router=router)
+    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.AccountByPuuid.format(puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)
 
@@ -92,7 +94,7 @@ async def GetActiveShardForPlayer(
         game: Annotated[str, Path(pattern="val|lor")],
         puuid: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
-    ):
+    ) -> ActiveShardDto:
     f"""
     {AccountV1_Endpoints.ActiveShardForPlayer}
     Get the Riot active shard of a player by their puuid
@@ -110,8 +112,6 @@ async def GetActiveShardForPlayer(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route="AccountV1", router=router)
+    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.ActiveShardForPlayer.format(game=game, puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)
-
-

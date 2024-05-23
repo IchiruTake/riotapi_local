@@ -1,11 +1,12 @@
 import logging
-from typing import Annotated, Any
-from httpx import AsyncClient
-from fastapi import APIRouter, HTTPException
-from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
-from requests import Response
-from src.backend.riotapi.client.httpx_riotclient import get_riotclient
+from typing import Any
 
+from fastapi import APIRouter, HTTPException
+from httpx import AsyncClient
+from requests import Response
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
+
+from src.backend.riotapi.client.httpx_riotclient import get_riotclient
 
 _RegionRoute: dict[str, dict[str, str]] = {
     "AccountV1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA",
@@ -15,7 +16,7 @@ _RegionRoute: dict[str, dict[str, str]] = {
                 "LA1": "AMERICAS", "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "SEA", "PH2": "SEA",
                 "RU": "EUROPE", "SG2": "SEA", "TH2": "SEA", "TR1": "EUROPE", "TW2": "SEA", "VN2": "SEA"}
 }
-REGION_ANNOTATED_PATTERN: str = "|".join(list(_RegionRoute["AccountV1"].keys()))
+REGION_ANNOTATED_PATTERN: str = fr'{"|".join(list(_RegionRoute["AccountV1"].keys()))}'
 
 
 def RegionRoute(user_region: str, src_route: str) -> str:
@@ -39,6 +40,7 @@ def GetRiotClientByUserRegionToContinent(region: str, src_route: str, router: AP
     except ValueError as e:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=f"Invalid region by {e}")
     else:
+        logging.info(f"Region: {region}")
         return get_riotclient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
 
 

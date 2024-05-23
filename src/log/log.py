@@ -54,7 +54,7 @@ def _CustomTimeFormatter(*args) -> struct_time:
 
 
 def _BuildFileHandler(base_filename, filemode: str, rotate_log: bool, rotate_every_sec: bool,
-                      encoding: str, delay: bool, errors: str,
+                      encoding: str, delay: bool, errors: str | None,
                       log_format: str | None, handler_level=None) -> logging.FileHandler:
     # [00] Proceed with empty value:
     if log_format is None:
@@ -72,7 +72,8 @@ def _BuildFileHandler(base_filename, filemode: str, rotate_log: bool, rotate_eve
         open(new_logfile, 'x').close()
 
     # [02] Create the file handler
-    file_handler = logging.FileHandler(new_logfile, mode=filemode, encoding=encoding, delay=delay, errors=errors)
+    file_handler = logging.FileHandler(new_logfile, mode=filemode, encoding=encoding, delay=delay,
+                                       errors=errors if errors != "None" else None)
     if log_format is not None:
         file_handler.setFormatter(fmt=_GetLogFormat(log_format))
     if handler_level is not None:
@@ -134,6 +135,6 @@ def presetDefaultLogging(cfg: dict) -> None:
         datefmt=cfg.get('DATEFMT', DATETIME_PATTERN),
         handlers=_FullBuild(cfg, handlers=None),
         encoding=cfg.get('ENCODING', 'utf-8'),
-        errors=cfg.get('ERRORS', 'strict')
+        errors=cfg.get('ERRORS', None)
     )
     IS_DEFAULT_LOGGER_ENABLED = True

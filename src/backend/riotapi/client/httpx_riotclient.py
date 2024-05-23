@@ -22,11 +22,7 @@ async def log_response(response: Response) -> None:
     msg: str = f"""
 Response from {response.request.method} {response.url} with status code {response.status_code}
     - Elapsed: {response.elapsed}
-    - Text: {response.text}
-    - JSON: {pformat(response.json())}
-    - Headers: {pformat(response.headers)}
-    - Content: {pformat(response.content)}
-    - History: {pformat(response.history)}"""
+    - Headers: {pformat(response.headers)}"""
     if response.status_code >= 400:
         response.raise_for_status()
         logging.warning(msg)

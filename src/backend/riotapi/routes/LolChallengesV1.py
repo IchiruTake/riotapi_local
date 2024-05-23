@@ -1,12 +1,11 @@
 from time import perf_counter
-from time import perf_counter
 from typing import Annotated
 
 from cachetools.func import ttl_cache
 from fastapi import Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
-
+from enum import Enum
 from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
     QueryToRiotAPI
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
