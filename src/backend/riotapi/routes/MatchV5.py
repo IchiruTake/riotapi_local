@@ -1,69 +1,325 @@
 import logging
 from time import perf_counter
+from typing import Annotated
 
 from cachetools.func import ttl_cache
+from fastapi import Path, Query
 from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
 from requests import Response
-
-from src.backend.riotapi.client.httpx_riotclient import get_riotclient
-
-
-def riotapi_region_routing(user_region: str) -> str:
-    # For user account searching, any region is valid
-    mapping = {
-        "BR1": "AMERICAS",
-        "EUN1": "EUROPE",
-        "EUW1": "EUROPE",
-        "JP1": "ASIA",
-        "KR": "ASIA",
-        "LA1": "AMERICAS",
-        "LA2": "AMERICAS",
-        "NA1": "AMERICAS",
-        "OC1": "SEA",
-        "PH2": "SEA",
-        "RU": "EUROPE",
-        "SG2": "SEA",
-        "TH2": "SEA",
-        "TR1": "EUROPE",
-        "TW2": "SEA",
-        "VN2": "SEA"
-    }
-    if user_region not in mapping:
-        logging.error(f"Invalid region: {user_region}")
-        raise ValueError(f"Invalid region: {user_region}")
-    return mapping[user_region]
+from starlette.status import HTTP_400_BAD_REQUEST
+from pydantic import BaseModel, Field
+from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
+    QueryToRiotAPI
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
 
 
 # ==================================================================================================
+class MatchV5_Endpoints:
+    ListMatchesByPuuid: str = '/lol/match/v5/matches/by-puuid/{puuid}/ids'
+    GetMatchById: str = '/lol/match/v5/matches/{matchId}'
+    GetMatchTimelineById: str = '/lol/match/v5/matches/{matchId}/timeline'
 
+
+# ==================================================================================================
+class MetadataDto(BaseModel):
+    dataVersion: str = Field(..., description="Match data version.")
+    matchId: str = Field(..., description="Match id.")
+    participants: list[str] = Field(..., description="A list of participant PUUIDs.")
+
+
+
+
+class ParticipantDto(BaseModel):
+    allInPings: int
+    assistMePings: int
+    assists: int
+    baronKills: int
+    bountyLevel: int
+    champExperience: int
+    champLevel: int
+    championId: int = Field(..., description="""
+    Prior to patch 11.4, on Feb 18th, 2021, this field returned invalid championIds. We recommend determining the 
+    champion based on the championName field for matches played prior to patch 11.4.""")
+    championName: str
+    commandPings: int
+    championTransform: int = Field(..., description="""
+    This field is currently only utilized for Kayn's transformations. (Legal values: 0 - None, 1 - Slayer, 
+    2 - Assassin)""")
+    consumablesPurchased: int
+    challenges: ChallengesDto
+    damageDealtToBuildings: int
+    damageDealtToObjectives: int
+    damageDealtToTurrets: int
+    dangerPings: int
+    damageSelfMitigated: int
+    deaths: int
+    detectorWardsPlaced: int
+    doubleKills: int
+    dragonKills: int
+    eligibleForProgression: bool
+    enemyMissingPings: int
+    enemyVisionPings: int
+    firstBloodAssist: bool
+    firstBloodKill: bool
+    firstTowerAssist: bool
+    firstTowerKill: bool
+    gameEndedInEarlySurrender: bool
+    gameEndedInSurrender: bool
+    holdPings: int
+    getBackPings: int
+    goldEarned: int
+    goldSpent: int
+    individualPosition: str = Field(..., description="""
+    Both individualPosition and teamPosition are computed by the game server and are different versions of the most 
+    likely position played by a player. The individualPosition is the best guess for which position the player actually 
+    played in isolation of anything else. The teamPosition is the best guess for which position the player actually 
+    played if we add the constraint that each team must have one top player, one jungle, one middle, etc. Generally the 
+    recommendation is to use the teamPosition field over the individualPosition field.""")
+    inhibitorKills: int
+    inhibitorTakedowns: int
+    inhibitorsLost: int
+    item0: int
+    item1: int
+    item2: int
+    item3: int
+    item4: int
+    item5: int
+    item6: int
+    itemsPurchased: int
+    killingSprees: int
+    kills: int
+    lane: str
+    largestCriticalStrike: int
+    largestKillingSpree: int
+    largestMultiKill: int
+    longestTimeSpentLiving: int
+    magicDamageDealt: int
+    magicDamageDealtToChampions: int
+    magicDamageTaken: int
+    missions: MissionsDto
+    neutralMinionsKilled: int
+    needVisionPings: int
+    nexusKills: int
+    nexusTakedowns: int
+    nexusLost: int
+    objectivesStolen: int
+    objectivesStolenAssists: int
+    onMyWayPings: int
+    participantId: int
+    pentaKills: int
+    perks: PerksDto
+    physicalDamageDealt: int
+    physicalDamageDealtToChampions: int
+    physicalDamageTaken: int
+    placement: int
+    playerAugment1: int
+    playerAugment2: int
+    playerAugment3: int
+    playerAugment4: int
+    playerSubteamId: int
+    pushPings: int
+    profileIcon: int
+    puuid: str
+    quadraKills: int
+    riotIdGameName: str
+    riotIdName: str
+    riotIdTagline: str
+    role: str
+    sightWardsBoughtInGame: int
+    spell1Casts: int
+    spell2Casts: int
+    spell3Casts: int
+    spell4Casts: int
+    subteamPlacement: int
+    summoner1Casts: int
+    summoner1Id: int
+    summoner2Casts: int
+    summoner2Id: int
+    summonerId: str
+    summonerLevel: int
+    summonerName: str
+    teamEarlySurrendered: bool
+    teamId: int
+    teamPosition: str = Field(..., description="""
+    Both individualPosition and teamPosition are computed by the game server and are different versions of the most 
+    likely position played by a player. The individualPosition is the best guess for which position the player actually 
+    played in isolation of anything else. The teamPosition is the best guess for which position the player actually 
+    played if we add the constraint that each team must have one top player, one jungle, one middle, etc. Generally the 
+    recommendation is to use the teamPosition field over the individualPosition field.""")
+    timeCCingOthers: int
+    timePlayed: int
+    totalAllyJungleMinionsKilled: int
+    totalDamageDealt: int
+    totalDamageDealtToChampions: int
+    totalDamageShieldedOnTeammates: int
+    totalDamageTaken: int
+    totalEnemyJungleMinionsKilled: int
+    totalHeal: int
+    totalHealsOnTeammates: int
+    totalMinionsKilled: int
+    totalTimeCCDealt: int
+    totalTimeSpentDead: int
+    totalUnitsHealed: int
+    tripleKills: int
+    trueDamageDealt: int
+    trueDamageDealtToChampions: int
+    trueDamageTaken: int
+    turretKills: int
+    turretTakedowns: int
+    turretsLost: int
+    unrealKills: int
+    visionScore: int
+    visionClearedPings: int
+    visionWardsBoughtInGame: int
+    wardsKilled: int
+    wardsPlaced: int
+    win: bool
+
+
+class InfoDto(BaseModel):
+    endOfGameResult: str = Field(..., description="Refer to indicate if the game ended in termination.")
+    gameCreation: int = Field(..., description="Unix timestamp for when the game is created on the game server "
+                                               "(i.e., the loading screen).")
+    gameDuration: int = Field(..., description="""
+    Prior to patch 11.20, this field returns the game length in milliseconds calculated from gameEndTimestamp - 
+    gameStartTimestamp. Post patch 11.20, this field returns the max timePlayed of any participant in the game in 
+    seconds, which makes the behavior of this field consistent with that of match-v4. The best way to handling the 
+    change in this field is to treat the value as milliseconds if the gameEndTimestamp field isn't in the response and 
+    to treat the value as seconds if gameEndTimestamp is in the response..""")
+    gameEndTimestamp: int = Field(..., description="""
+    Unix timestamp for when match ends on the game server. This timestamp can occasionally be significantly longer than 
+    when the match "ends". The most reliable way of determining the timestamp for the end of the match would be to add 
+    the max time played of any participant to the gameStartTimestamp. This field was added to match-v5 in patch 11.20 
+    on Oct 5th, 2021.
+    """)
+    gameId: int = Field(..., description="Game ID.")
+    gameMode: str = Field(..., description="Refer to the Game Constants documentation.")
+    gameName: str = Field(..., description="Game name.")
+    gameStartTimestamp: int = Field(..., description="Unix timestamp for when match starts on the game server.")
+    gameType: str = Field(..., description="Refer to the Game Constants documentation.")
+    gameVersion: str = Field(..., description="The first two parts can be used to determine the patch a game "
+                                              "was played on.")
+    mapId: int = Field(..., description="Refer to the Game Constants documentation.")
+    participants: list[ParticipantDto]
+    platformId: str = Field(..., description="Platform where the match was played.")
+    queueId: int = Field(..., description="Refer to the Game Constants documentation.")
+    teams: list[]
+    tournamentCode: str = Field(..., description="Tournament code used to generate the match. This field was "
+                                                 "added to match-v5 in patch 11.13 on June 23rd, 2021.")
+
+
+class MatchDto(BaseModel):
+    metadata: MetadataDto
+    info: InfoDto
+
+
+# ==================================================================================================
 router = APIRouter()
 
 
-@ttl_cache(maxsize=128, ttl=60, timer=perf_counter, typed=True)
-@router.get("/{region}/{puuid}", response_model=list[str])
-async def get_matches(region: str, puuid: str, start: int = 0, count: int = 0) -> list[str]:
-    """
-    Get the Riot account information of a player by their username and tagline.
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
+@router.get("/by-puuid/{region}/{puuid}", response_model=list[str])
+async def ListMatches(
+        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)],
+        puuid: str,
+        startTime: int | None = None,
+        endTime: int | None = None,
+        queue: int | None = None,
+        type: str | None = None,
+        start: Annotated[int, Query(default=20, ge=0)] | None = 0,
+        count: Annotated[int, Query(default=20, ge=0, le=100)] | None = 20,
+    ) -> list[str]:
+    f"""
+    {MatchV5_Endpoints.ListMatchesByPuuid}
+    List match ids of a player by puuid.
 
     Arguments:
     ---------
 
-    - username (str)
-        The username of the player.
+    - path::region (str)
+        The region of the player.
 
-    - tagLine (str)
-        The tagline of the player.
+    - path::puuid (str)
+        The puuid of the player.
+
+    - query::startTime (str)
+        Epoch timestamp in seconds. The matchlist started storing timestamps on June 16th, 2021. Any matches 
+        played before June 16th, 2021 won't be included in the results if the startTime filter is set.
+    
+    - query::endTime (str)
+        Epoch timestamp in seconds.
+        
+    - query::queue (int)
+        Filter the list of match ids by a specific queue id. This filter is mutually inclusive of the 'type' filter 
+        meaning any match ids returned must match both the queue and type filters.
+    
+    - query::type (str)
+        Filter the list of match ids by the type of match. This filter is mutually inclusive of the 'queue' filter 
+        meaning any match ids returned must match both the queue and type filters.
+    
+    - query::start (int)
+        The starting index of the match ids to return. Default is 0. Zero means the latest match the player's play.
+        
+    - query::count (int)
+        The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
 
     """
-    USERCFG = router.default_user_cfg
-    try:
-        region: str = riotapi_region_routing(USERCFG.REGION)
-    except ValueError:
-        return HTTPException(status_code=400, detail="Invalid region")
-    client = get_riotclient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
-    ENDPOINT: str = '/riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}'
-    PATH_ENDPOINT = ENDPOINT.format(gameName=username, tagLine=tagLine)
-    response: Response = await client.get(PATH_ENDPOINT)
-    response.raise_for_status()
-    return response.json()
+    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
+                                                  bypass_region_route=False)
+    endpoint: str = MatchV5_Endpoints.ListMatchesByPuuid.format(puuid=puuid)
+
+    ops = [('startTime', startTime), ('endTime', endTime), ('queue', queue), ('type', type), ('start', start),
+           ('count', count)]
+    params = {key: value for key, value in ops if value is not None}
+    return await QueryToRiotAPI(client, endpoint, params=params)
+
+
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
+@router.get("/{matchId}", response_model=list[str])
+async def GetMatch(
+        matchId: str,
+        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
+) -> list[str]:
+    f"""
+    {MatchV5_Endpoints.ListMatchesByPuuid}
+    List match ids of a player by puuid.
+
+    Arguments:
+    ---------
+
+    - path::region (str)
+        The region of the player.
+
+    - path::puuid (str)
+        The puuid of the player.
+
+    - query::startTime (str)
+        Epoch timestamp in seconds. The matchlist started storing timestamps on June 16th, 2021. Any matches 
+        played before June 16th, 2021 won't be included in the results if the startTime filter is set.
+
+    - query::endTime (str)
+        Epoch timestamp in seconds.
+
+    - query::queue (int)
+        Filter the list of match ids by a specific queue id. This filter is mutually inclusive of the 'type' filter 
+        meaning any match ids returned must match both the queue and type filters.
+
+    - query::type (str)
+        Filter the list of match ids by the type of match. This filter is mutually inclusive of the 'queue' filter 
+        meaning any match ids returned must match both the queue and type filters.
+
+    - query::start (int)
+        The starting index of the match ids to return. Default is 0. Zero means the latest match the player's play.
+
+    - query::count (int)
+        The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
+
+    """
+    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
+                                                  bypass_region_route=False)
+    endpoint: str = MatchV5_Endpoints.GetMatchById.format(matchId=matchId)
+
+    return await QueryToRiotAPI(client, endpoint)
+
+

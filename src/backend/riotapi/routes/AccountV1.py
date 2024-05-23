@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, BASE_TTL_MULTIPLIER, EXTENDED_TTL_DURATION
 
 
 # ==================================================================================================
@@ -32,7 +33,7 @@ class ActiveShardDto(BaseModel):
 router = APIRouter()
 
 
-@ttl_cache(maxsize=128, ttl=300, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-riot-id/{username}/{tagLine}", response_model=AccountDto)
 async def GetAccountByRiotId(
         username: str, tagLine: str,
@@ -60,7 +61,7 @@ async def GetAccountByRiotId(
     return await QueryToRiotAPI(client, path_endpoint)
 
 
-@ttl_cache(maxsize=128, ttl=300, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-puuid/{puuid}", response_model=AccountDto)
 async def GetAccountByPuuid(
         puuid: str,
@@ -85,7 +86,7 @@ async def GetAccountByPuuid(
     return await QueryToRiotAPI(client, path_endpoint)
 
 
-@ttl_cache(maxsize=128, ttl=300, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-game/{game}/{puuid}", response_model=ActiveShardDto)
 async def GetActiveShardForPlayer(
         game: Annotated[str, Path(pattern="val|lor")],

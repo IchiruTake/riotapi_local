@@ -57,3 +57,9 @@ SQLITE_PARAMS: dict[str, str] = {
 }
 TRANSACTION_BATCH_SIZE: int = 128
 MAX_FAILED_TRANSACTION: int = 3
+
+# ==================================================================================================
+BASE_TTL_ENTRY: int = 128
+BASE_TTL_MULTIPLIER: int = 16
+BASE_TTL_DURATION: int = 5 * MINUTE  # 5 minutes
+EXTENDED_TTL_DURATION: int = HOUR # 1 hour

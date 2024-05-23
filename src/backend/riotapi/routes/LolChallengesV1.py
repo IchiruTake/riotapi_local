@@ -1,19 +1,15 @@
-import logging
+from time import perf_counter
 from time import perf_counter
 from typing import Annotated
 
-from pydantic import BaseModel, Field
 from cachetools.func import ttl_cache
-from fastapi.exceptions import HTTPException
-from fastapi import Path, Query
+from fastapi import Query
 from fastapi.routing import APIRouter
-from requests import Response
-from enum import Enum
+from pydantic import BaseModel, Field
 
-from src.backend.riotapi.client.httpx_riotclient import get_riotclient
 from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
     QueryToRiotAPI
-from src.utils.static import MINUTE
+from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
 
 
 # ==================================================================================================
@@ -22,6 +18,7 @@ class LolChallengesV1_Endpoints:
     ChallengeConfigInfoByChallengeId: str = '/lol/challenges/v1/challenges/{challengeId}/config'
     PercentileLevel: str = '/lol/challenges/v1/challenges/percentiles'
     PercentileLevelByChallengeId: str = '/lol/challenges/v1/challenges/{challengeId}/percentiles'
+    PlayerData: str = '/lol/challenges/v1/player-data/{puuid}'
 
 
 class State(str, Enum):
@@ -33,7 +30,8 @@ class State(str, Enum):
 
 class Tracking(str, Enum):
     LIFETIME: str = Field("LIFETIME", description="Stats are incremented without reset")
-    SEASON: str = Field("SEASON", description="Stats are accumulated by season and reset at the beginning of new season")
+    SEASON: str = Field("SEASON",
+                        description="Stats are accumulated by season and reset at the beginning of new season")
 
 
 class Level(str, Enum):
@@ -59,17 +57,47 @@ class ChallengeConfigInfoDto(BaseModel):
     thresholds: dict[str, float]
 
 
+class ChallengePoints(BaseModel):
+    level: str
+    current: int
+    max: int
+    percentile: float
+
+
+class ChallengeInfo(BaseModel):
+    challengeId: int
+    percentile: float
+    level: str
+    value: int
+    achievedTime: int
+
+
+class PlayerClientPreferences(BaseModel):
+    bannerAccent: str
+    title: str
+    challengeIds: list[int]
+    crestBorder: str
+    prestigeCrestBorderLevel: int
+
+
+class PlayerInfoDto(BaseModel):
+    totalPoints: ChallengePoints
+    categoryPoints: dict[str, ChallengePoints]
+    challenges: list[ChallengeInfo]
+    preferences: PlayerClientPreferences
+
+
 # ==================================================================================================
 router = APIRouter()
 
 
 # ==================================================================================================
 # Challenge Config
-@ttl_cache(maxsize=1, ttl=30*MINUTE, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/config", response_model=list[ChallengeConfigInfoDto])
 async def ListChallengeConfigInfoDto(
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> list[ChallengeConfigInfoDto]:
+) -> list[ChallengeConfigInfoDto]:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfo}
     List of all basic challenge configuration information (includes all translations for names and descriptions)
@@ -87,12 +115,12 @@ async def ListChallengeConfigInfoDto(
     return await QueryToRiotAPI(client, endpoint)
 
 
-@ttl_cache(maxsize=64, ttl=30*MINUTE, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/config/{challengeId}", response_model=ChallengeConfigInfoDto)
 async def GetChallengeConfigInfoDto(
         challengeId: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> ChallengeConfigInfoDto:
+) -> ChallengeConfigInfoDto:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfoByChallengeId}
     Get of basic challenge configuration information (includes all translations for names and descriptions) 
@@ -114,11 +142,11 @@ async def GetChallengeConfigInfoDto(
     return await QueryToRiotAPI(client, endpoint)
 
 
-@ttl_cache(maxsize=1, ttl=30*MINUTE, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/percentiles", response_model=dict[int, dict[str, float]])
 async def ListPercentileLevel(
-        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> dict[int, dict[str, float]]:
+        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+) -> dict[int, dict[str, float]]:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfo}
     List of all basic level to percentile of players who have achieved it 
@@ -137,12 +165,12 @@ async def ListPercentileLevel(
     return await QueryToRiotAPI(client, endpoint)
 
 
-@ttl_cache(maxsize=64, ttl=30*MINUTE, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/percentiles/{challengeId}", response_model=dict[str, float])
 async def GetPercentileLevelByChallengeId(
         challengeId: str,
-        region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
-    ) -> dict[str, float]:
+        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+) -> dict[str, float]:
     f"""
     {LolChallengesV1_Endpoints.PercentileLevelByChallengeId}
     Get of basic level to percentile of players who have achieved it based on the challenge id.
@@ -160,4 +188,30 @@ async def GetPercentileLevelByChallengeId(
     client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
                                                   bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PercentileLevelByChallengeId.format(challengeId=challengeId)
+    return await QueryToRiotAPI(client, endpoint)
+
+
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
+@router.get("/player-data/{puuid}", response_model=PlayerInfoDto)
+async def GetPlayerData(
+        puuid: str,
+        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+) -> PlayerInfoDto:
+    f"""
+    {LolChallengesV1_Endpoints.PlayerData}
+    Get player information with list of all progressed challenges
+
+    Arguments:
+    ---------
+
+    - path::puuid (str)
+        The puuid of the player.
+        
+    - query::region (str)
+        The region to query against as.
+
+    """
+    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
+                                                  bypass_region_route=True)
+    endpoint: str = LolChallengesV1_Endpoints.PlayerData.format(puuid=puuid)
     return await QueryToRiotAPI(client, endpoint)

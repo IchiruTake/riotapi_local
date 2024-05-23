@@ -9,11 +9,11 @@ from src.backend.riotapi.client.httpx_riotclient import get_riotclient
 
 _RegionRoute: dict[str, dict[str, str]] = {
     "AccountV1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA",
-                  "LA1": "AMERICAS", "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "ASIA", "PH2": "ASIA", "RU": "EUROPE",
-                  "SG2": "ASIA", "TH2": "ASIA", "TR1": "EUROPE", "TW2": "ASIA", "VN2": "ASIA"},
-    "LolMatchV1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA",
-                   "LA1": "AMERICAS", "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "ASIA", "PH2": "ASIA",
-                   "RU": "EUROPE", "SG2": "ASIA", "TH2": "ASIA", "TR1": "EUROPE", "TW2": "ASIA", "VN2": "ASIA"}
+                  "LA1": "AMERICAS", "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "ASIA", "PH2": "ASIA",
+                  "RU": "EUROPE", "SG2": "ASIA", "TH2": "ASIA", "TR1": "EUROPE", "TW2": "ASIA", "VN2": "ASIA"},
+    "MatchV5": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA",
+                "LA1": "AMERICAS", "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "SEA", "PH2": "SEA",
+                "RU": "EUROPE", "SG2": "SEA", "TH2": "SEA", "TR1": "EUROPE", "TW2": "SEA", "VN2": "SEA"}
 }
 REGION_ANNOTATED_PATTERN: str = "|".join(list(_RegionRoute["AccountV1"].keys()))
 
@@ -42,7 +42,8 @@ def GetRiotClientByUserRegionToContinent(region: str, src_route: str, router: AP
         return get_riotclient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
 
 
-async def QueryToRiotAPI(client: AsyncClient, endpoint: str) -> object | Any:
-    response: Response = await client.get(endpoint)
+async def QueryToRiotAPI(client: AsyncClient, endpoint: str, params: dict | None = None,
+                         headers: dict | None = None, cookies: dict | None = None) -> object | Any:
+    response: Response = await client.get(endpoint, params=params, headers=headers, cookies=cookies)
     response.raise_for_status()
     return response.json()

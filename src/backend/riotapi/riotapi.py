@@ -17,10 +17,10 @@ from src.backend.riotapi.client.httpx_riotclient import cleanup_riotclient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
 from src.backend.riotapi.middlewares.monitor import ApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
-from src.backend.riotapi.routes.AccountV1 import router as account_router
-from src.backend.riotapi.routes.LolChallengesV1 import router as lol_challenges_v1_router
-from src.backend.riotapi.routes.MatchV5 import router as match_v5_router
-from src.backend.riotapi.routes.mastery import router as mastery_v4_router
+from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
+from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
+from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
+from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
 from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE
 
@@ -216,10 +216,10 @@ logging.info("The middlewares have been added to the application ...")
 # ==================================================================================================
 logging.info("Including the routers in the application ...")
 APIROUTER_MAPPING: dict[str, APIRouter] = {
-    "/account_v1": account_router,
-    "/lol_challenges_v1": lol_challenges_v1_router,
-    "/match_v5": match_v5_router,
-    "/mastery_v4": mastery_v4_router,
+    "/account_v1": AccountV1_router,
+    "/lol_challenges_v1": LolChallengesV1_router,
+    "/match_v5": MatchV5_router,
+    "/champion_mastery_v4": ChampionMasteryV4_router,
 }
 for path, router in APIROUTER_MAPPING.items():
     app.include_router(router, prefix=path)
