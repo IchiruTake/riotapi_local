@@ -27,7 +27,282 @@ class MetadataDto(BaseModel):
     matchId: str = Field(..., description="Match id.")
     participants: list[str] = Field(..., description="A list of participant PUUIDs.")
 
+class MissionsDto(BaseModel):
+    playerScore0: int
+    playerScore1: int
+    playerScore2: int
+    playerScore3: int
+    playerScore4: int
+    playerScore5: int
+    playerScore6: int
+    playerScore7: int
+    playerScore8: int
+    playerScore9: int
+    playerScore10: int
+    playerScore11: int
 
+
+class ObjectiveDto(BaseModel):
+    first: bool
+    kills: int
+
+class ObjectivesDto(BaseModel):
+    baron: ObjectiveDto
+    champion: ObjectiveDto
+    dragon: ObjectiveDto
+    horde: ObjectiveDto
+    inhibitor: ObjectiveDto
+    riftHerald: ObjectiveDto
+    tower: ObjectiveDto
+
+class BanDto(BaseModel):
+    championId: int
+    pickTurn: int
+
+class TeamDto(BaseModel):
+    bans: list[BanDto]
+    objectives: ObjectivesDto
+    teamId: int
+    win: bool
+
+class PerkStyleSelectionDto(BaseModel):
+    perk: int
+    var1: int
+    var2: int
+    var3: int
+
+
+class PerkDto(BaseModel):
+    description: str
+    selections: list[PerkStyleSelectionDto]
+    style: int
+
+
+class PerkStatsDto(BaseModel):
+    defense: int
+    flex: int
+    offense: int
+
+
+class PerksDto(BaseModel):
+    statPerks: PerkStatsDto
+    styles: list[PerkDto]
+
+
+class ChallengesDto(BaseModel):
+    12
+    AssistStreakCount
+    int
+    abilityUses
+    int
+    acesBefore15Minutes
+    int
+    alliedJungleMonsterKills
+    int
+    baronTakedowns
+    int
+    blastConeOppositeOpponentCount
+    int
+    bountyGold
+    int
+    buffsStolen
+    int
+    completeSupportQuestInTime
+    int
+    controlWardsPlaced
+    int
+    damagePerMinute
+    float
+    damageTakenOnTeamPercentage
+    float
+    dancedWithRiftHerald
+    int
+    deathsByEnemyChamps
+    int
+    dodgeSkillShotsSmallWindow
+    int
+    doubleAces
+    int
+    dragonTakedowns
+    int
+    legendaryItemUsed
+    List[int]
+    effectiveHealAndShielding
+    float
+    elderDragonKillsWithOpposingSoul
+    int
+    elderDragonMultikills
+    int
+    enemyChampionImmobilizations
+    int
+    enemyJungleMonsterKills
+    int
+    epicMonsterKillsNearEnemyJungler
+    int
+    epicMonsterKillsWithin30SecondsOfSpawn
+    int
+    epicMonsterSteals
+    int
+    epicMonsterStolenWithoutSmite
+    int
+    firstTurretKilled
+    int
+    firstTurretKilledTime
+    float
+    flawlessAces
+    int
+    fullTeamTakedown
+    int
+    gameLength
+    float
+    getTakedownsInAllLanesEarlyJungleAsLaner
+    int
+    goldPerMinute
+    float
+    hadOpenNexus
+    int
+    immobilizeAndKillWithAlly
+    int
+    initialBuffCount
+    int
+    initialCrabCount
+    int
+    jungleCsBefore10Minutes
+    int
+    junglerTakedownsNearDamagedEpicMonster
+    int
+    kda
+    float
+    killAfterHiddenWithAlly
+    int
+    killedChampTookFullTeamDamageSurvived
+    int
+    killingSprees
+    int
+    killParticipation
+    float
+    killsNearEnemyTurret
+    int
+    killsOnOtherLanesEarlyJungleAsLaner
+    int
+    killsOnRecentlyHealedByAramPack
+    int
+    killsUnderOwnTurret
+    int
+    killsWithHelpFromEpicMonster
+    int
+    knockEnemyIntoTeamAndKill
+    int
+    kTurretsDestroyedBeforePlatesFall
+    int
+    landSkillShotsEarlyGame
+    int
+    laneMinionsFirst10Minutes
+    int
+    lostAnInhibitor
+    int
+    maxKillDeficit
+    int
+    mejaisFullStackInTime
+    int
+    moreEnemyJungleThanOpponent
+    int
+    multiKillOneSpell
+    int
+    multikills
+    int
+    multikillsAfterAggressiveFlash
+    int
+    multiTurretRiftHeraldCount
+    int
+    outerTurretExecutesBefore10Minutes
+    int
+    outnumberedKills
+    int
+    outnumberedNexusKill
+    int
+    perfectDragonSoulsTaken
+    int
+    perfectGame
+    int
+    pickKillWithAlly
+    int
+    poroExplosions
+    int
+    quickCleanse
+    int
+    quickFirstTurret
+    int
+    quickSoloKills
+    int
+    riftHeraldTakedowns
+    int
+    saveAllyFromDeath
+    int
+    scuttleCrabKills
+    int
+    shortestTimeToAceFromFirstTakedown
+    float
+    skillshotsDodged
+    int
+    skillshotsHit
+    int
+    snowballsHit
+    int
+    soloBaronKills
+    int
+    soloKills
+    int
+    stealthWardsPlaced
+    int
+    survivedSingleDigitHpCount
+    int
+    survivedThreeImmobilizesInFight
+    int
+    takedownOnFirstTurret
+    int
+    takedowns
+    int
+    takedownsAfterGainingLevelAdvantage
+    int
+    takedownsBeforeJungleMinionSpawn
+    int
+    takedownsFirstXMinutes
+    int
+    takedownsInAlcove
+    int
+    takedownsInEnemyFountain
+    int
+    teamBaronKills
+    int
+    teamDamagePercentage
+    float
+    teamElderDragonKills
+    int
+    teamRiftHeraldKills
+    int
+    tookLargeDamageSurvived
+    int
+    turretPlatesTaken
+    int
+    turretsTakenWithRiftHerald
+    int
+    turretTakedowns
+    int
+    twentyMinionsIn3SecondsCount
+    int
+    twoWardsOneSweeperCount
+    int
+    unseenRecalls
+    int
+    visionScorePerMinute
+    int
+    wardsGuarded
+    int
+    wardTakedowns
+    int
+    wardTakedownsBefore20M
+    int
 
 
 class ParticipantDto(BaseModel):
@@ -204,7 +479,7 @@ class InfoDto(BaseModel):
     participants: list[ParticipantDto]
     platformId: str = Field(..., description="Platform where the match was played.")
     queueId: int = Field(..., description="Refer to the Game Constants documentation.")
-    teams: list[]
+    teams: list[TeamDto]
     tournamentCode: str = Field(..., description="Tournament code used to generate the match. This field was "
                                                  "added to match-v5 in patch 11.13 on June 23rd, 2021.")
 
