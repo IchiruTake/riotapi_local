@@ -15,7 +15,7 @@ from starlette.types import ASGIApp
 
 from src.backend.riotapi.client.httpx_riotclient import cleanup_riotclient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
-from src.backend.riotapi.middlewares.monitor import ApitallyMiddleware
+from src.backend.riotapi.middlewares.monitor import ReworkedApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
 from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
 from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
@@ -210,7 +210,7 @@ with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
         MAX_REQUESTS: int = value["MAX_REQUESTS"]
         REQUESTS_INTERVAL: int = value["REQUESTS_INTERVAL"]
         app.add_middleware(RateLimiterMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
-# app.add_middleware(ApitallyMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
+# app.add_middleware(ReworkedApitallyMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
 #                    identify_consumer_callback=None)
 logging.info("The middlewares have been added to the application ...")
 

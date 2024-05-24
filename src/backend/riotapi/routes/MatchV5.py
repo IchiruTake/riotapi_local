@@ -1,4 +1,10 @@
-import logging
+"""
+See here for updates:
+https://github.com/RiotGames/developer-relations/issues/928
+
+"""
+
+
 from time import perf_counter
 from typing import Annotated
 
@@ -75,7 +81,7 @@ class PerkStyleSelectionDto(BaseModel):
     var3: int
 
 
-class PerkDto(BaseModel):
+class PerkStyleDto(BaseModel):
     description: str
     selections: list[PerkStyleSelectionDto]
     style: int
@@ -89,7 +95,7 @@ class PerkStatsDto(BaseModel):
 
 class PerksDto(BaseModel):
     statPerks: PerkStatsDto
-    styles: list[PerkDto]
+    styles: list[PerkStyleDto]
 
 
 class ChallengesDto(BaseModel):
@@ -122,7 +128,7 @@ class ChallengesDto(BaseModel):
     epicMonsterSteals: int
     epicMonsterStolenWithoutSmite: int
     firstTurretKilled: int
-    firstTurretKilledTime: float
+    firstTurretKilledTime: float | None = Field(None)
     flawlessAces: int
     fullTeamTakedown: int
     gameLength: float
@@ -169,7 +175,7 @@ class ChallengesDto(BaseModel):
     riftHeraldTakedowns: int
     saveAllyFromDeath: int
     scuttleCrabKills: int
-    shortestTimeToAceFromFirstTakedown: float
+    shortestTimeToAceFromFirstTakedown: float | None = Field(None)
     skillshotsDodged: int
     skillshotsHit: int
     snowballsHit: int
@@ -196,7 +202,7 @@ class ChallengesDto(BaseModel):
     twentyMinionsIn3SecondsCount: int
     twoWardsOneSweeperCount: int
     unseenRecalls: int
-    visionScorePerMinute: int
+    visionScorePerMinute: int | float
     wardsGuarded: int
     wardTakedowns: int
     wardTakedownsBefore20M: int
@@ -295,7 +301,7 @@ class ParticipantDto(BaseModel):
     puuid: str
     quadraKills: int
     riotIdGameName: str
-    riotIdName: str
+    riotIdName: str | None = Field(None, description="This field is currently not utilized.")
     riotIdTagline: str
     role: str
     sightWardsBoughtInGame: int
@@ -390,6 +396,7 @@ class MatchDto(BaseModel):
 router = APIRouter()
 SRC_ROUTE: str = str(__name__).split('.')[-1]
 
+
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-puuid/{puuid}", response_model=list[str])
 async def ListMatches(
@@ -448,7 +455,7 @@ async def ListMatches(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{matchId}", response_model=list[str])
+@router.get("/{matchId}", response_model=MatchDto)
 async def GetMatch(
         matchId: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]

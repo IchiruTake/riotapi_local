@@ -1,12 +1,8 @@
 import pydantic
+import json
+from src.backend.riotapi.routes.MatchV5 import MatchDto
 
-class Tags(pydantic.BaseModel):
-    commit : str = pydantic.Field(alias="mlflow.source.git.commit")
-
-data = {
-  "mlflow.source.git.commit": "fbe812fe",
-  "other.key": "other.value"
-}
-
-t = Tags(**data)
-print(t)
+with open('./src/mastery.json', 'r') as file:
+    data = json.load(file)
+    match = MatchDto(**data)
+    print(match)

@@ -21,7 +21,7 @@ from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import Async
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 
-__all__ = ["ApitallyMiddleware"]
+__all__ = ["ReworkedApitallyMiddleware"]
 
 
 # =============================================================================
@@ -66,7 +66,7 @@ def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
 
 
 # =============================================================================
-class ApitallyMiddleware(BaseHTTPMiddleware):
+class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, unmonitored_paths: list[str] | None,
                  identify_consumer_callback: Callable[[Request], str | None] | None = None):
         self.unmonitored_paths: list[str] = unmonitored_paths or []
