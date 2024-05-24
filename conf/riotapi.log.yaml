@@ -1,0 +1,34 @@
+# Recommended to not alter the following settings.
+LOGGER:
+    LEVEL: 0 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
+    DATEFMT: '%Y-%m-%d %H:%M:%S %z'
+    # FORMAT: '[%(asctime)s] %(levelname)s: %(message)s'
+    # STREAM: ext://sys.stdout    # ext://sys.stdout or ext://sys.stderr or None
+    ENCODING: utf-32
+    ERRORS: None
+
+    DEBUG_FILE_HANDLER:
+        ENABLED: true
+        # Filename
+        LOG_FILE: ./log/riotapi_debug.log
+        LOG_FILEMODE: a
+        ROTATE_LOG: true
+        ROTATE_EVERY_SEC: false
+
+        LOG_FORMAT: '[%(name)s-BASIC-DEBUGFILE] [%(asctime)s] [%(levelname)s] [File=%(pathname)s ; Line=%(lineno)d]: %(message)s'
+        ENCODING: utf-32
+        DELAY: false
+        ERRORS: None
+        LEVEL: 10 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
+
+    OUT_STREAM_HANDLER: # Recommended to not alter this setting.
+        ENABLED: true
+        LEVEL: 10 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
+        STREAM: "ext://sys.stdout"    # ext://sys.stdout or ext://sys.stderr or None
+        LOG_FORMAT: '[%(name)s-BASIC-OUTSTREAM] [%(asctime)s] %(levelname)s: %(message)s'
+
+    ERR_STREAM_HANDLER: # Recommended to not alter this setting.
+        ENABLED: true
+        LEVEL: 40 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
+        STREAM: "ext://sys.stderr"    # ext://sys.stdout or ext://sys.stderr or None
+        LOG_FORMAT: '[%(name)s-BASIC-ERRSTREAM] [%(asctime)s] %(levelname)s: %(message)s'
