@@ -20,8 +20,11 @@ from src.backend.riotapi.middlewares.common import get_versions
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
+from src.utils.utils import GetDurationOfPerfCounterInMs
 
 __all__ = ["ReworkedApitallyMiddleware"]
+
+
 
 
 # =============================================================================
@@ -89,7 +92,7 @@ class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
                 request=request,
                 response=None,
                 status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-                response_time=GET_TIME_COUNTER() - start_time,
+                response_time=GetDurationOfPerfCounterInMs(start_time),
                 exception=e,
             )
             raise e from None
@@ -98,7 +101,7 @@ class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
                 request=request,
                 response=response,
                 status_code=response.status_code,
-                response_time=GET_TIME_COUNTER() - start_time,
+                response_time=GetDurationOfPerfCounterInMs(start_time),
             )
         return response
 

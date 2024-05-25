@@ -34,7 +34,15 @@ Request to {request.url} by method {request.method}
 
 async def _httpx_log_response(response: Response) -> None:
     await response.aread()
-    response.headers['X-Response-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
+    # Calculate the duration of the request
+    current_datetime: datetime = datetime.now(tz=GetProgramTimezone())
+    request_timestamp: str = response.request.headers['X-Request-Timestamp']
+    request_datetime: datetime = datetime.fromisoformat(request_timestamp)
+    request_duration: int = (current_datetime - request_datetime).microseconds // 1000
+    response.headers['X-Response-Timestamp'] = current_datetime.isoformat()
+    response.headers['X-Request-Timestamp'] = request_timestamp
+    response.headers['X-Response-DurationInMilliseconds'] = str(request_duration)
+
     msg: str = f"""
 Response from {response.request.method} {response.url} with status code {response.status_code}
     - Elapsed: {response.elapsed}
@@ -49,7 +57,6 @@ Response from {response.request.method} {response.url} with status code {respons
         else:
             logging.info(msg)
             logging.info(content)
-
     except (UnicodeError, UnicodeDecodeError) as e:
         pass
 
