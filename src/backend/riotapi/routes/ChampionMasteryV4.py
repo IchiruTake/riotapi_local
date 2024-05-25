@@ -44,7 +44,7 @@ class ChampionMasteryDto(BaseModel):
 
 # ==================================================================================================
 router = APIRouter()
-
+SRC_ROUTE = str(__name__).split('.')[-1]
 
 def _ProcessChampionMastery(func: Callable):
     def wrapper(*args, **kwargs) -> list[ChampionMasteryDto] | ChampionMasteryDto:

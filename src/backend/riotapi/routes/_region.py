@@ -2,8 +2,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from httpx import AsyncClient
-from requests import Response
+from httpx import AsyncClient, Response
 from fastapi import Response as FastAPIResponse
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 

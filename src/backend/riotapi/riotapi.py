@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp
 
-from src.backend.riotapi.client.httpx_riotclient import cleanup_riotclient
+from src.backend.riotapi.client.httpx_riotclient import CleanupRiotClient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
 from src.backend.riotapi.middlewares.monitor import ReworkedApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
@@ -106,7 +106,7 @@ async def riotapi_lifespan(application: ASGIApp | FastAPI):
 
         while MAX_REPETITIONS == -1 or CURRENT_REPETITIONS < MAX_REPETITIONS:
             next_trigger: int = reload_authentication_for_router(application)
-            await cleanup_riotclient()
+            await CleanupRiotClient()
             logging.info(f"Reloaded the authentication, and pool cleanup in the {RIOTAPI_ENV_CFG_FILE} file "
                          f"for the resource update")
 
@@ -125,7 +125,7 @@ async def riotapi_lifespan(application: ASGIApp | FastAPI):
     yield
 
     # Clean up and release the resources
-    await cleanup_riotclient()
+    await CleanupRiotClient()
     MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
     logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
     logging.shutdown()

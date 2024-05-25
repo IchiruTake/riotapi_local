@@ -1,3 +1,4 @@
+import ssl
 import logging
 import time
 from datetime import datetime
@@ -11,6 +12,18 @@ from src.log.timezone import GetProgramTimezone
 from src.utils.utils import GetDurationOfPerfCounterInMs
 
 
+# ==================================================================================================
+_HTTP1: bool = True
+_HTTP2: bool = True
+_VERIFY: bool | ssl.SSLContext = (httpx.create_ssl_context(cert=None, trust_env=True, verify=False, http2=_HTTP2) or
+                                  ssl.create_default_context())
+_PROXY: str | None = None
+_PROXIES: dict[str, str] | None = None
+_MOUNTS: dict[str, httpx.AsyncClient] | None = None
+_FOLLOW_REDIRECTS: bool = False
+_DEFAULT_ENCODING: str = 'utf-8'
+
+# ==================================================================================================
 async def _httpx_log_request(request: Request) -> None:
     request.headers['X-Request-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
     msg: str = f"""
@@ -53,19 +66,11 @@ class HttpTimeout(BaseModel):
 _RIOT_CLIENTPOOL: dict[str, httpx.AsyncClient] = {}
 
 
-def region_to_host(region: str) -> str:
+def _RegionToHost(region: str) -> str:
     return f"https://{region.lower()}.api.riotgames.com"
 
 
-async def cleanup_riotclient() -> None:
-    for region, client in _RIOT_CLIENTPOOL.items():
-        await client.aclose()
-        logging.info(f"Closed the {region.upper()} Riot client.")
-
-    _RIOT_CLIENTPOOL.clear()
-    logging.info("Cleared the Riot client pool.")
-
-
+# ==================================================================================================
 class RiotClientWrapper(BaseModel):
     HEADERS: dict = Field(default_factory=dict, title="Headers", description="The headers for the HTTP(S) request")
     PARAMS: dict = Field(default_factory=dict, title="Params", description="The params for the HTTP request")
@@ -117,12 +122,23 @@ def GetRiotClient(region: str, auth: dict | None, timeout: dict | None) -> httpx
     timeout = riot_wrapper.TIMEOUT
     tout = httpx.Timeout(timeout=timeout.ALL, connect=timeout.CONNECT, read=timeout.READ,
                          write=timeout.WRITE, pool=timeout.POOL)
-    client = httpx.AsyncClient(base_url=region_to_host(region), verify=True, http1=True, http2=True, proxy=None,
-                               proxies=None, mounts=None, follow_redirects=False, params=riot_wrapper.PARAMS,
-                               headers=riot_wrapper.HEADERS, timeout=tout, default_encoding='utf-8')
+    client = httpx.AsyncClient(base_url=_RegionToHost(region),
+                               verify=_VERIFY, http1=_HTTP1, http2=_HTTP2,
+                               proxy=_PROXY, proxies=_PROXIES, mounts=_MOUNTS, follow_redirects=_FOLLOW_REDIRECTS,
+                               params=riot_wrapper.PARAMS, headers=riot_wrapper.HEADERS, timeout=tout,
+                               default_encoding=_DEFAULT_ENCODING)
     # Configure the client-hooks
     client.event_hooks['request'] = [_httpx_log_request]
     client.event_hooks['response'] = [_httpx_log_response]
     _RIOT_CLIENTPOOL[region] = client
     logging.debug(f"Created a new Riot client for region: {region} in {GetDurationOfPerfCounterInMs(t):.2f} ms.")
     return client
+
+
+async def CleanupRiotClient() -> None:
+    for region, client in _RIOT_CLIENTPOOL.items():
+        await client.aclose()
+        logging.info(f"Closed the {region.upper()} Riot client.")
+
+    _RIOT_CLIENTPOOL.clear()
+    logging.info("Cleared the Riot client pool.")
