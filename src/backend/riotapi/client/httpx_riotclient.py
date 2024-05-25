@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from pprint import pformat
 
@@ -7,9 +8,10 @@ from httpx import Request, Response
 from pydantic import BaseModel, Field
 
 from src.log.timezone import GetProgramTimezone
+from src.utils.utils import GetDurationOfPerfCounterInMs
 
 
-async def log_request(request: Request) -> None:
+async def _httpx_log_request(request: Request) -> None:
     request.headers['X-Request-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
     msg: str = f"""
 Request to {request.url} by method {request.method}
@@ -17,17 +19,26 @@ Request to {request.url} by method {request.method}
     logging.info(msg)
 
 
-async def log_response(response: Response) -> None:
+async def _httpx_log_response(response: Response) -> None:
     await response.aread()
+    response.headers['X-Response-Timestamp'] = datetime.now(tz=GetProgramTimezone()).isoformat()
     msg: str = f"""
 Response from {response.request.method} {response.url} with status code {response.status_code}
     - Elapsed: {response.elapsed}
     - Headers: {pformat(response.headers)}"""
     if response.status_code >= 400:
         response.raise_for_status()
-        logging.warning(msg)
-    else:
-        logging.info(msg)
+    try:
+        content: str = f"\n\t- Content: {pformat(response.json())}"
+        if response.status_code >= 400:
+            logging.warning(msg)
+            logging.warning(content)
+        else:
+            logging.info(msg)
+            logging.info(content)
+
+    except (UnicodeError, UnicodeDecodeError) as e:
+        pass
 
 
 class HttpTimeout(BaseModel):
@@ -49,7 +60,7 @@ def region_to_host(region: str) -> str:
 async def cleanup_riotclient() -> None:
     for region, client in _RIOT_CLIENTPOOL.items():
         await client.aclose()
-        logging.info(f"Closed the Riot client for region: {region}")
+        logging.info(f"Closed the {region.upper()} Riot client.")
 
     _RIOT_CLIENTPOOL.clear()
     logging.info("Cleared the Riot client pool.")
@@ -61,11 +72,15 @@ class RiotClientWrapper(BaseModel):
     TIMEOUT: HttpTimeout = Field(title="Timeout", description="The timeout for the HTTP request")
 
 
-def _set_headers_params_timeout(auth: dict | None, timeout: dict | None) -> RiotClientWrapper:
+def _SetHeadersParamsTimeout(auth: dict | None, timeout: dict | None) -> RiotClientWrapper:
     headers: dict = {
+        # RiotAPI - Default Headers
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Charset": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Origin": "https://developer.riotgames.com"
+        "Origin": "https://developer.riotgames.com",
+
+        # Custom Headers
+        "Accept-Encoding": "gzip, deflate, br, zstd, identity, *;q=0.1",
     }
     params: dict = {}
     if auth is not None:
@@ -83,19 +98,20 @@ def _set_headers_params_timeout(auth: dict | None, timeout: dict | None) -> Riot
                           f'PREFER_APPROACH, either HEADER_NAME or PARAM_NAME. Error: {e}')
             raise e
     else:
-        logging.warning(
-            'No authentication approach is provided, the client will be created without any authentication.')
+        logging.warning('No authentication approach is provided, the client will be created without '
+                        'any authentication.')
     return RiotClientWrapper(HEADERS=headers, PARAMS=params, TIMEOUT=HttpTimeout(**timeout))
 
 
-def get_riotclient(region: str, auth: dict | None, timeout: dict | None) -> httpx.AsyncClient:
+def GetRiotClient(region: str, auth: dict | None, timeout: dict | None) -> httpx.AsyncClient:
     # Configure the authentication approach with headers/params
     if region in _RIOT_CLIENTPOOL:
         logging.info(f"Found an existing Riot client for region: {region}")
         return _RIOT_CLIENTPOOL[region]
 
     logging.info(f"Creating a new Riot client for region: {region}")
-    riot_wrapper: RiotClientWrapper = _set_headers_params_timeout(auth, timeout)
+    t = time.perf_counter()
+    riot_wrapper: RiotClientWrapper = _SetHeadersParamsTimeout(auth, timeout)
 
     # No proxy/proxies/mounts are supported here -> Declare for informative
     timeout = riot_wrapper.TIMEOUT
@@ -105,7 +121,8 @@ def get_riotclient(region: str, auth: dict | None, timeout: dict | None) -> http
                                proxies=None, mounts=None, follow_redirects=False, params=riot_wrapper.PARAMS,
                                headers=riot_wrapper.HEADERS, timeout=tout, default_encoding='utf-8')
     # Configure the client-hooks
-    client.event_hooks['request'] = [log_request]
-    client.event_hooks['response'] = [log_response]
+    client.event_hooks['request'] = [_httpx_log_request]
+    client.event_hooks['response'] = [_httpx_log_response]
     _RIOT_CLIENTPOOL[region] = client
+    logging.debug(f"Created a new Riot client for region: {region} in {GetDurationOfPerfCounterInMs(t):.2f} ms.")
     return client

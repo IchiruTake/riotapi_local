@@ -115,7 +115,7 @@ async def ListChallengeConfigInfoDto(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/challenge/config/{challengeId}", response_model=ChallengeConfigInfoDto)
+@router.get("/challenge/config/{challengeId}", response_model=ChallengeConfigInfoDto, tags=[SRC_ROUTE])
 async def GetChallengeConfigInfoDto(
         challengeId: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
@@ -142,7 +142,7 @@ async def GetChallengeConfigInfoDto(
 
 
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/challenge/percentiles", response_model=dict[int, dict[str, float]])
+@router.get("/challenge/percentiles", response_model=dict[int, dict[str, float]], tags=[SRC_ROUTE])
 async def ListPercentileLevel(
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
 ) -> dict[int, dict[str, float]]:
@@ -165,7 +165,7 @@ async def ListPercentileLevel(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/challenge/percentiles/{challengeId}", response_model=dict[str, float])
+@router.get("/challenge/percentiles/{challengeId}", response_model=dict[str, float], tags=[SRC_ROUTE])
 async def GetPercentileLevelByChallengeId(
         challengeId: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
@@ -191,7 +191,7 @@ async def GetPercentileLevelByChallengeId(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/player-data/{puuid}", response_model=PlayerInfoDto)
+@router.get("/player-data/{puuid}", response_model=PlayerInfoDto, tags=[SRC_ROUTE])
 async def GetPlayerData(
         puuid: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]

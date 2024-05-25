@@ -4,9 +4,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from httpx import AsyncClient
 from requests import Response
+from fastapi import Response as FastAPIResponse
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 
-from src.backend.riotapi.client.httpx_riotclient import get_riotclient
+from src.backend.riotapi.client.httpx_riotclient import GetRiotClient
 
 _RegionRoute: dict[str, dict[str, str]] = {
     "AccountV1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA",
@@ -19,33 +20,44 @@ _RegionRoute: dict[str, dict[str, str]] = {
 REGION_ANNOTATED_PATTERN: str = fr'{"|".join(list(_RegionRoute["AccountV1"].keys()))}'
 
 
-def RegionRoute(user_region: str, src_route: str) -> str:
-    if src_route not in _RegionRoute:
-        logging.error(f"Invalid route: {src_route}")
-        raise ValueError(f"Invalid route: {src_route}")
-    if user_region not in _RegionRoute[src_route]:
-        logging.error(f"Invalid region: {user_region}")
-        raise ValueError(f"Invalid region: {user_region}")
-    return _RegionRoute[src_route][user_region]
-
-
 def GetRiotClientByUserRegionToContinent(region: str, src_route: str, router: APIRouter,
                                          bypass_region_route: bool = False) -> AsyncClient:
-    try:
+    if hasattr(router, 'default_user_cfg'): # pragma: no cover
         USERCFG = router.default_user_cfg
-        if not bypass_region_route:
-            region: str = RegionRoute(region or USERCFG.REGION, src_route=src_route)
-    except AttributeError as e:
-        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Invalid router configuration by {e}")
-    except ValueError as e:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=f"Invalid region by {e}")
-    else:
-        logging.info(f"Region: {region}")
-        return get_riotclient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
+        try:
+            if not bypass_region_route:
+                if src_route not in _RegionRoute:
+                    logging.error(f"Invalid route: {src_route}")
+                    raise ValueError(f"Invalid route: {src_route}")
+
+                usr_region: str = region or USERCFG.REGION
+                if usr_region not in _RegionRoute[src_route]:
+                    logging.error(f"Invalid region: {usr_region}")
+                    raise ValueError(f"Invalid region: {usr_region}")
+                region: str = _RegionRoute[src_route][usr_region]
+        except ValueError as e:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=f"Invalid region or source routing by {e}")
+
+        return GetRiotClient(region=region, auth=USERCFG.AUTH, timeout=USERCFG.TIMEOUT)
+
+    raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid router configuration")
 
 
 async def QueryToRiotAPI(client: AsyncClient, endpoint: str, params: dict | None = None,
-                         headers: dict | None = None, cookies: dict | None = None) -> object | Any:
+                         headers: dict | None = None, cookies: dict | None = None,
+                         usr_response: FastAPIResponse = None) -> object | Any:
     response: Response = await client.get(endpoint, params=params, headers=headers, cookies=cookies)
     response.raise_for_status()
+    if usr_response is not None:
+        try:
+            usr_response.status_code = response.status_code
+            usr_response.headers.update(response.headers)
+            usr_response.charset = response.encoding
+            media_type: str | None = response.headers.get('Content-Type', None)
+            if not media_type:
+                media_type = media_type.split(';')[0]
+            usr_response.media_type = media_type
+        except Exception as e:
+            logging.warning(f"Error on updating the user's response: {e}")
+
     return response.json()

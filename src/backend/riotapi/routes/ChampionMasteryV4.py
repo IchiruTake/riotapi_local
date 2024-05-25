@@ -64,7 +64,7 @@ def _ProcessChampionMastery(func: Callable):
 # ==================================================================================================
 @_ProcessChampionMastery
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{region}/{puuid}", response_model=list[ChampionMasteryDto])
+@router.get("/{region}/{puuid}", response_model=list[ChampionMasteryDto], tags=[SRC_ROUTE])
 async def ListChampionMastery(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
@@ -91,7 +91,7 @@ async def ListChampionMastery(
 
 @_ProcessChampionMastery
 @ttl_cache(maxsize=BASE_TTL_ENTRY * BASE_TTL_MULTIPLIER, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{region}/{puuid}/{championId}", response_model=ChampionMasteryDto)
+@router.get("/{region}/{puuid}/{championId}", response_model=ChampionMasteryDto, tags=[SRC_ROUTE])
 async def GetChampionMastery(
         puuid: str,
         championId: int,
@@ -123,7 +123,7 @@ async def GetChampionMastery(
 
 @_ProcessChampionMastery
 @ttl_cache(maxsize=BASE_TTL_ENTRY * BASE_TTL_MULTIPLIER, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{region}/{puuid}/top{count}", response_model=list[ChampionMasteryDto])
+@router.get("/{region}/{puuid}/top{count}", response_model=list[ChampionMasteryDto], tags=[SRC_ROUTE])
 async def ListTopChampionMastery(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)],
@@ -152,7 +152,7 @@ async def ListTopChampionMastery(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{region}/{puuid}/score", response_model=int)
+@router.get("/{region}/{puuid}/score", response_model=int, tags=[SRC_ROUTE])
 async def GetChampionMasteryScore(
         puuid: str,
         region: Annotated[str, Path(pattern=REGION_ANNOTATED_PATTERN)]
