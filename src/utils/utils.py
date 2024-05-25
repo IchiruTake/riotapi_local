@@ -1,3 +1,4 @@
+from time import perf_counter
 from typing import Sequence
 
 
@@ -94,3 +95,7 @@ def formatFloat(value: int | float, precision: int = 2, max_number: int = 3) -> 
             next_char = str(value)[idx + 1]
             break
     return "".join(result)
+
+
+def GetDurationOfPerfCounterInMs(t: float) -> float:
+    return 1e3 * (perf_counter() - t)

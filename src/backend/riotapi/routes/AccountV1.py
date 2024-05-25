@@ -36,7 +36,7 @@ SRC_ROUTE: str = str(__name__).split('.')[-1]
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/by-riot-id/{username}/{tagLine}", response_model=AccountDto)
+@router.get("/by-riot-id/{username}/{tagLine}", response_model=AccountDto, tags=[SRC_ROUTE])
 async def GetAccountByRiotId(
         username: str, tagLine: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
@@ -64,7 +64,7 @@ async def GetAccountByRiotId(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/by-puuid/{puuid}", response_model=AccountDto)
+@router.get("/by-puuid/{puuid}", response_model=AccountDto, tags=[SRC_ROUTE])
 async def GetAccountByPuuid(
         puuid: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
@@ -89,7 +89,7 @@ async def GetAccountByPuuid(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/by-game/{game}/{puuid}", response_model=ActiveShardDto)
+@router.get("/by-game/{game}/{puuid}", response_model=ActiveShardDto, tags=[SRC_ROUTE])
 async def GetActiveShardForPlayer(
         game: Annotated[str, Path(pattern="val|lor")],
         puuid: str,

@@ -398,7 +398,7 @@ SRC_ROUTE: str = str(__name__).split('.')[-1]
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/by-puuid/{puuid}", response_model=list[str])
+@router.get("/by-puuid/{puuid}", response_model=list[str], tags=[SRC_ROUTE])
 async def ListMatches(
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)],
         puuid: str,
@@ -455,7 +455,7 @@ async def ListMatches(
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/{matchId}", response_model=MatchDto)
+@router.get("/{matchId}", response_model=MatchDto, tags=[SRC_ROUTE])
 async def GetMatch(
         matchId: str,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
