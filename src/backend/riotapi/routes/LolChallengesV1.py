@@ -93,7 +93,7 @@ SRC_ROUTE: str = str(__name__).split('.')[-1]
 # ==================================================================================================
 # Challenge Config
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
-@router.get("/challenge/config", response_model=list[ChallengeConfigInfoDto])
+@router.get("/challenge/config", response_model=list[ChallengeConfigInfoDto], tags=[SRC_ROUTE])
 async def ListChallengeConfigInfoDto(
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
 ) -> list[ChallengeConfigInfoDto]:
