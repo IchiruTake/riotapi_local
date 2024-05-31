@@ -8,6 +8,7 @@ from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 import toml
+from cachetools.func import ttl_cache
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
@@ -19,10 +20,24 @@ from src.backend.riotapi.middlewares.monitor import ReworkedApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
 from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
 from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
+from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
 from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
 from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
 from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE
+from src.utils.static import EXTENDED_TTL_DURATION
+
+try:
+    import logfire
+    logfire.configure(
+        send_to_logfire=False,
+        show_summary=True,
+        trace_sample_rate=0.8,
+        collect_system_metrics=True,
+    )
+except ImportError as e:
+    logging.warning(f"Error on importing the LogFire: {e}")
+    logfire = None
 
 
 # import os
@@ -129,6 +144,11 @@ async def riotapi_lifespan(application: ASGIApp | FastAPI):
     MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
     logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
     logging.shutdown()
+    try:
+        import logfire
+        logfire.shutdown()
+    except ImportError as e:
+        logging.warning(f"Error on importing the LogFire: {e}")
 
 
 # ==================================================================================================
@@ -217,18 +237,34 @@ logging.info("The middlewares have been added to the application ...")
 # ==================================================================================================
 logging.info("Including the routers in the application ...")
 APIROUTER_MAPPING: dict[str, APIRouter] = {
-    "/account_v1": AccountV1_router,
-    "/lol_challenges_v1": LolChallengesV1_router,
-    "/match_v5": MatchV5_router,
-    "/champion_mastery_v4": ChampionMasteryV4_router,
+    "/Account/v1": AccountV1_router,
+    "/LolChallenges/v1": LolChallengesV1_router,
+    "/Match/v5": MatchV5_router,
+    "/ChampionMastery/v4": ChampionMasteryV4_router,
+    "/Champion/v3": ChampionV3_router,
 }
 for path, router in APIROUTER_MAPPING.items():
     app.include_router(router, prefix=path)
 app.lst_routers = [r for _, r in APIROUTER_MAPPING.items()]
 logging.info("The routers have been included in the application, adding the dependency resource is done ...")
 
+# ==================================================================================================
+# Initiate the LogFire
+logging.info("The LogFire has been initialized ...")
+if logfire is not None:
+    logfire.instrument_fastapi(app)
+
 
 # ==================================================================================================
-@app.get("/")
+@app.get("/_health", tags=["health"], response_model=dict[str, str])
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Hello World. Your application can now be accessed at /docs or /redoc."}
+
+@ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION)
+@app.get("/tags", tags=["tags"], response_model=dict[str, list[str]])
+async def export() -> dict[str, list[str]]:
+    tags: dict[str, list[str]] = {}
+    for route in app.routes:
+        if hasattr(route, "tags") and hasattr(route, "path"):
+            tags[route.path] = route.tags
+    return tags

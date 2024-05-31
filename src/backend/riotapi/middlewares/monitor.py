@@ -25,8 +25,6 @@ from src.utils.utils import GetDurationOfPerfCounterInMs
 __all__ = ["ReworkedApitallyMiddleware"]
 
 
-
-
 # =============================================================================
 def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
     if isinstance(app, Router):
@@ -128,7 +126,7 @@ class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
             c = self.client.validation_error_counter[0]
             c.accumulate(consumer=consumer, method=request.method, path=path_template, detail=body["detail"])
 
-        if status_code == 500 and exception is not None:
+        if status_code == HTTP_500_INTERNAL_SERVER_ERROR and exception is not None:
             # Log server errors
             c = self.client.server_error_counter[0]
             c.accumulate(consumer=consumer, method=request.method, path=path_template, exception=exception)

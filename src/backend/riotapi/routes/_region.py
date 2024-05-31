@@ -56,7 +56,15 @@ async def QueryToRiotAPI(client: AsyncClient, endpoint: str, params: dict | None
             if not media_type:
                 media_type = media_type.split(';')[0]
             usr_response.media_type = media_type
+
+            # Set the response content
+            usr_response.content = response.content
+
+            # Set the response body
+            usr_response.body = response.text
+            usr_response.text = response.text
+
         except Exception as e:
             logging.warning(f"Error on updating the user's response: {e}")
 
-    return response.json()
+    return response  # response.json()

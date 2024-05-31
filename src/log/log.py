@@ -20,6 +20,11 @@ from typing import TextIO
 from src.utils.static import DATETIME_PATTERN_FOR_FILENAME, DATE_PATTERN, DATETIME_PATTERN
 from src.log.timezone import GetProgramTimezone
 
+try:
+    import logfire
+except ImportError:
+    logfire = None
+
 # ==================================================================================================
 IS_DEFAULT_LOGGER_ENABLED: bool = False
 
@@ -123,6 +128,16 @@ def _FullBuild(cfg: dict, handlers: list[logging.Handler] | None = None) -> list
             h = _BuildStreamHandler(stream=value['STREAM'], log_format=value['LOG_FORMAT'],
                                     handler_level=value['LEVEL'])
             handlers.append(h)
+
+        if "logfire.LogfireLoggingHandler" in key:
+            logfire_handler_enabled = value.get('ENABLED', False)
+            if not logfire_handler_enabled:
+                continue
+            if logfire is None:
+                raise ImportError("logfire module is not installed, but the handler is enabled. Please install logfire.")
+            h = logfire.LogfireLoggingHandler()
+            handlers.append(h)
+
     return handlers
 
 def presetDefaultLogging(cfg: dict) -> None:
