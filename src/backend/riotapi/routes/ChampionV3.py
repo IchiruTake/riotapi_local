@@ -6,7 +6,7 @@ from fastapi import Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel
 
-from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
+from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 
@@ -43,6 +43,6 @@ async def GetChampionRotation(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = ChampionV3_Endpoints.ChampionRotation
     return await QueryToRiotAPI(client, path_endpoint)

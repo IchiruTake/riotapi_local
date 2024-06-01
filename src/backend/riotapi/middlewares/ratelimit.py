@@ -1,45 +1,29 @@
-from math import ceil
-from time import perf_counter
-from typing import Callable
-
 from fastapi import FastAPI, Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-
-from src.utils.static import MINUTE
-
+from src.backend.riotapi.middlewares.counter import RateLimitCounter, ExpiryDateCounter
 
 # ==============================================================================
-# Rate Limiting
-def _time_measure() -> int | float:
-    return perf_counter()
-
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: FastAPI, max_requests: int, interval_by_second: int = MINUTE,
-                 time_operator: Callable = _time_measure):
+    def __init__(self, app: FastAPI, rate_limit_counters: list[RateLimitCounter],
+                 expiry_date_counter: list[ExpiryDateCounter]):
         super().__init__(app)
-        self._operator: Callable = time_operator
-        self.max_requests: int = max_requests
-        self.interval_by_second: int = interval_by_second
-
-        self.num_processed_requests: int = 0
-        self.last_request_time: float = self._operator()
+        self._rate_limit_counters: list[RateLimitCounter] = rate_limit_counters or []
+        self._expiry_date_counter: list[ExpiryDateCounter] = expiry_date_counter or []
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         # Check how many requests has been processed
-        current_time = self._operator()
-        diff_time: float = current_time - self.last_request_time
-        current_processed_requests = ceil(self.max_requests * diff_time) // self.interval_by_second
-        self.num_processed_requests = max(0, self.num_processed_requests - current_processed_requests) + 1
-        self.last_request_time = current_time
+        for rate_limit_counter in self._rate_limit_counters:
+            is_ok, est_time = rate_limit_counter.increment()
+            if not is_ok:
+                message = f"Rate limit exceeded. Try again in {est_time:.2f} seconds."
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=message)
 
-        # Rate Limiting Decision
-        if self.num_processed_requests > self.max_requests:
-            remaining_requests = self.num_processed_requests - self.max_requests
-            est_time = remaining_requests * self.interval_by_second / self.max_requests
-            message = (f"Rate limit exceeded ({remaining_requests} requests remaining). "
-                       f"Try again in {est_time:.2f} seconds.")
-            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=message)
+        # Check if our application would be expired to stop all traffic
+        for expiry_date_counter in self._expiry_date_counter:
+            is_ok, message = expiry_date_counter.is_ok()
+            if not is_ok:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message)
 
         # Process the request
         return await call_next(request)

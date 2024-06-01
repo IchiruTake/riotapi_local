@@ -7,7 +7,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 
-from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
+from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, BASE_TTL_MULTIPLIER
 
@@ -83,8 +83,8 @@ async def ListChampionMastery(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     path_endpoint: str = ChampionMasteryV4_Endpoints.MasteryByPuuid.format(puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)
 
@@ -171,7 +171,7 @@ async def GetChampionMasteryScore(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route="ChampionMasteryV4", router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route="ChampionMasteryV4", router=router,
+                                       bypass_region_route=True)
     path_endpoint: str = ChampionMasteryV4_Endpoints.MasteryScoreByPuuid.format(puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)

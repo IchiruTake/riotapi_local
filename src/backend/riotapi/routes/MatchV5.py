@@ -13,7 +13,7 @@ from fastapi import Path, Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 
-from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
+from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegion, \
     QueryToRiotAPI
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 
@@ -444,8 +444,8 @@ async def ListMatches(
         The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router,
-                                                  bypass_region_route=False)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router,
+                                       bypass_region_route=False)
     endpoint: str = MatchV5_Endpoints.ListMatchesByPuuid.format(puuid=puuid)
 
     ops = [('startTime', startTime), ('endTime', endTime), ('queue', queue), ('type', type), ('start', start),
@@ -495,7 +495,7 @@ async def GetMatch(
         The number of match ids to return. Default is 20. The maximum number of matches returned is 100.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router,
-                                                  bypass_region_route=False)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router,
+                                       bypass_region_route=False)
     endpoint: str = MatchV5_Endpoints.GetMatchById.format(matchId=matchId)
     return await QueryToRiotAPI(client, endpoint)

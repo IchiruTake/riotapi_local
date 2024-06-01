@@ -16,7 +16,6 @@ from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_422_UNPROCESSA
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
-from src.backend.riotapi.middlewares.common import get_versions
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
@@ -53,7 +52,7 @@ def analyze_app(app: ASGIApp, openapi_url: str | None = None) -> dict[str, Any]:
         app_info["openapi"] = openapi
     if endpoints := _list_endpoints(app):
         app_info["paths"] = [{"path": endpoint.path, "method": endpoint.http_method} for endpoint in endpoints]
-    app_info["versions"] = get_versions("fastapi", "starlette", app_version=None)
+    # app_info["versions"] = get_versions("fastapi", "starlette", app_version=None)
     app_info["client"] = "python:starlette"
     return app_info
 

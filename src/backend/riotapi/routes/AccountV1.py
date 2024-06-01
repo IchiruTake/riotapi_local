@@ -6,7 +6,7 @@ from fastapi import Path, Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 
-from src.backend.riotapi.routes._region import GetRiotClientByUserRegionToContinent, QueryToRiotAPI, \
+from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 
@@ -58,7 +58,7 @@ async def GetAccountByRiotId(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.AccountByRiotId.format(userName=username, tagLine=tagLine)
     return await QueryToRiotAPI(client, path_endpoint)
 
@@ -83,7 +83,7 @@ async def GetAccountByPuuid(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.AccountByPuuid.format(puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)
 
@@ -112,6 +112,6 @@ async def GetActiveShardForPlayer(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=SRC_ROUTE, router=router)
+    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = AccountV1_Endpoints.ActiveShardForPlayer.format(game=game, puuid=puuid)
     return await QueryToRiotAPI(client, path_endpoint)

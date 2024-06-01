@@ -6,7 +6,7 @@ from fastapi import Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 from enum import Enum
-from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegionToContinent, \
+from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegion, \
     QueryToRiotAPI
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
 
@@ -108,8 +108,8 @@ async def ListChallengeConfigInfoDto(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.ChallengeConfigInfo
     return await QueryToRiotAPI(client, endpoint)
 
@@ -135,8 +135,8 @@ async def GetChallengeConfigInfoDto(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.ChallengeConfigInfoByChallengeId.format(challengeId=challengeId)
     return await QueryToRiotAPI(client, endpoint)
 
@@ -158,8 +158,8 @@ async def ListPercentileLevel(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PercentileLevel
     return await QueryToRiotAPI(client, endpoint)
 
@@ -184,8 +184,8 @@ async def GetPercentileLevelByChallengeId(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PercentileLevelByChallengeId.format(challengeId=challengeId)
     return await QueryToRiotAPI(client, endpoint)
 
@@ -210,7 +210,7 @@ async def GetPlayerData(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegionToContinent(region, src_route=str(__name__), router=router,
-                                                  bypass_region_route=True)
+    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
+                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PlayerData.format(puuid=puuid)
     return await QueryToRiotAPI(client, endpoint)

@@ -1,9 +1,11 @@
 """
-This module contains the how we control and manipulate the log format for the project.
+This module contains how we control and manipulate the log format for the project.
 This also include a base configuration for the log system, including the default logger and the datetime format.
 
 
 """
+from cachetools.func import ttl_cache
+from enum import StrEnum
 
 # ==================================================================================================
 # RegEx Patterns for Logging
@@ -37,7 +39,10 @@ YEAR: int = int(365.25 * DAY)
 
 # ==================================================================================================
 # Configurations
+REFRESH_RATE_IF_NOT_FOUND: int = 5 * MINUTE     # 5 minutes
+MIN_REFRESH_RATE_IF_FOUND: int = 1 * MINUTE    # 1 minutes
 RIOTAPI_ENV_CFG_FILE: str = "./conf/riotapi.env.toml"
+RIOTAPI_SECRETS_CFG_FILE: str = "./conf/riotapi.secrets.toml"
 RIOTAPI_GC_CFG_FILE: str = "./conf/riotapi.gc.toml"
 RIOTAPI_LOG_CFG_FILE: str = "./conf/riotapi.log.yaml"
 
@@ -59,8 +64,59 @@ TRANSACTION_BATCH_SIZE: int = 128
 MAX_FAILED_TRANSACTION: int = 3
 
 # ==================================================================================================
+ContinentRoute: dict[str, list[str]] = {
+    "C1": ["AMERICAS", "EUROPE", "ASIA", "ESPORTS"],
+    "C2": ["AMERICAS", "EUROPE", "ASIA", "SEA"]
+}
+RegionRoute: dict[str, dict[str, str]] = {
+    "R1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA", "LA1": "AMERICAS",
+           "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "ASIA", "PH2": "ASIA", "RU": "EUROPE", "SG2": "ASIA",
+           "TH2": "ASIA", "TR1": "EUROPE", "TW2": "ASIA", "VN2": "ASIA"},
+    "R2": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA", "LA1": "AMERICAS",
+           "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "SEA", "PH2": "SEA", "RU": "EUROPE", "SG2": "SEA",
+           "TH2": "SEA", "TR1": "EUROPE", "TW2": "SEA", "VN2": "SEA"}
+}
+_MOUNTLIST: dict[str, str] = {
+    "AccountV1": "R1",
+    "MatchV5": "R2",
+}
+for key, value in _MOUNTLIST.items():
+    RegionRoute[key] = RegionRoute[value]
+
+class CredentialName(StrEnum):
+    FULL: str = "full"
+    LOL: str = "lol"
+    LOR: str = "lor"
+    TFT: str = "tft"
+    VAL: str = "val"
+
+
+# ==================================================================================================
+# TTL Cache
 BASE_TTL_ENTRY: int = 128
 BASE_TTL_MULTIPLIER: int = 16
 BASE_TTL_DURATION: int = 5 * MINUTE  # 5 minutes
 EXTENDED_TTL_DURATION: int = HOUR # 1 hour
 LIFETIME_TTL_DURATION: int = WEEK  # 1 week
+
+
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=LIFETIME_TTL_DURATION)
+def GeneratePattern(source_input: str, account: str, use_values: bool = False) -> str:
+    match source_input:
+        case "REGION":
+            source = RegionRoute[account]
+            if use_values:
+                return fr'{"|".join(source.values())}'
+            return fr'{"|".join(source.keys())}'
+        case "CONTINENT":
+            return fr'{"|".join(ContinentRoute[account])}'
+        case _:
+            raise ValueError(f"Invalid source: {source_input}")
+
+REGION_ANNOTATED_PATTERN: str = GeneratePattern("REGION", "R1")
+CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C1")
+REGION_TTL_ENTRY: int = BASE_TTL_ENTRY * (REGION_ANNOTATED_PATTERN.count("|") + 1)
+CONTINENT_TTL_ENTRY: int = BASE_TTL_ENTRY * (CONTINENT_ANNOTATED_PATTERN.count("|") + 1)
+
+# ==================================================================================================
+# Response Headers

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp
 
-from src.backend.riotapi.client.httpx_riotclient import CleanupRiotClient
+from src.backend.riotapi.client import HttpxAsyncClient
 from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
 from src.backend.riotapi.middlewares.monitor import ReworkedApitallyMiddleware
 from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
@@ -24,8 +24,7 @@ from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
 from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
 from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
-from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE
-from src.utils.static import EXTENDED_TTL_DURATION
+from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE, EXTENDED_TTL_DURATION
 
 try:
     import logfire
@@ -51,7 +50,7 @@ def _load_datetime(year: int, month: int, day: int, hour: int, minute: int, seco
     return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second, tzinfo=ZoneInfo(timezone))
 
 
-def reload_expiry_time_for_middleware() -> datetime:
+def ReloadExpiryTimeForMiddleware() -> datetime:
     with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_env:
         config = toml.load(riotapi_env)
         deadline_cfg: dict = config['riotapi']['key']['expiry_date']
@@ -80,7 +79,7 @@ class USER_CFG(BaseModel):
     AUTH: dict = Field(default_factory=dict, title="Authorization", description="The API key for the Riot API")
 
 
-def reload_authentication_for_router(application: FastAPI) -> int:
+def ReloadAuthenticationForRouter(application: FastAPI) -> int:
     with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_env:
         config = toml.load(riotapi_env)
         # Set tracking users
@@ -108,20 +107,20 @@ def reload_authentication_for_router(application: FastAPI) -> int:
 
 
 @asynccontextmanager
-async def riotapi_lifespan(application: ASGIApp | FastAPI):
+async def RiotapiLifespan(application: ASGIApp | FastAPI):
     # On-Startup
     logging.info("The logging mechanism has been initialized ...")
     MAX_REPETITIONS: int = -1  # -1: infinite loop
     CURRENT_REPETITIONS: int = 0
 
-    async def _reload_dependency_resources():
+    async def _ReloadDependencyResources():
         nonlocal MAX_REPETITIONS, CURRENT_REPETITIONS
         if MAX_REPETITIONS < -1:
             raise ValueError("The maximum repetitions must be greater than or equal to -1")
 
         while MAX_REPETITIONS == -1 or CURRENT_REPETITIONS < MAX_REPETITIONS:
-            next_trigger: int = reload_authentication_for_router(application)
-            await CleanupRiotClient()
+            next_trigger: int = ReloadAuthenticationForRouter(application)
+            await HttpxAsyncClient.CleanUpPool()
             logging.info(f"Reloaded the authentication, and pool cleanup in the {RIOTAPI_ENV_CFG_FILE} file "
                          f"for the resource update")
 
@@ -133,22 +132,24 @@ async def riotapi_lifespan(application: ASGIApp | FastAPI):
 
     # Don't push await for daemon task
     loop = asyncio.get_event_loop()
-    loop.create_task(_reload_dependency_resources(), name="Reload Dependency Resources") # pragma: no cover
+    loop.create_task(_ReloadDependencyResources(), name="Reload Dependency Resources") # pragma: no cover
 
     # Application Initialization
     logging.info("Starting the application ...")
     yield
 
     # Clean up and release the resources
-    await CleanupRiotClient()
     MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
-    logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
-    logging.shutdown()
+    await HttpxAsyncClient.CleanUpPool()
     try:
         import logfire
         logfire.shutdown()
     except ImportError as e:
         logging.warning(f"Error on importing the LogFire: {e}")
+    pass
+    logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
+    logging.shutdown()
+
 
 
 # ==================================================================================================
@@ -168,7 +169,7 @@ FASTAPI_CONFIG = {
     # https://fastapi.tiangolo.com/tutorial/middleware/
     'ON_STARTUP': None,
     'ON_SHUTDOWN': None,
-    'LIFESPAN': riotapi_lifespan,
+    'LIFESPAN': RiotapiLifespan,
     'TERMS_OF_SERVICE': None,
     'CONTACT': {
         'name': 'Ichiru Take',
@@ -220,8 +221,9 @@ app: FastAPI = FastAPI(
 # ==================================================================================================
 logging.info("The FastAPI application has been initialized. Adding the middlewares ...")
 SECRET_KEY = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=DAY, https_only=False)  # 1-day session
-app.add_middleware(ExpiryTimeMiddleware, deadline=reload_expiry_time_for_middleware)
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=DAY, same_site='lax',
+                   https_only=False)  # 1-day session
+app.add_middleware(ExpiryTimeMiddleware, deadline=ReloadExpiryTimeForMiddleware)
 with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
     config = toml.load(riotapi_environment_global)
     cfg = config["riotapi"]["limit"]["global"]
