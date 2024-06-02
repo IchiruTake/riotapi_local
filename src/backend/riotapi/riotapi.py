@@ -12,19 +12,21 @@ from cachetools.func import ttl_cache
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp
 
 from src.backend.riotapi.client import HttpxAsyncClient
-from src.backend.riotapi.middlewares.expiry_time import ExpiryTimeMiddleware
-from src.backend.riotapi.middlewares.monitor import ReworkedApitallyMiddleware
-from src.backend.riotapi.middlewares.ratelimit import RateLimiterMiddleware
+from src.backend.riotapi.middlewares.LocalMiddleware import ExpiryDateMiddleware, RateLimitMiddleware
+from src.backend.riotapi.middlewares.monitor import MonitorMiddleware
 from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
 from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
 from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
 from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
 from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
-from src.utils.static import DAY, RIOTAPI_ENV_CFG_FILE, EXTENDED_TTL_DURATION
+from src.utils.static import (DAY, RIOTAPI_ENV_CFG_FILE, EXTENDED_TTL_DURATION, REFRESH_RATE_IF_NOT_FOUND,
+                              MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
+from src.utils.static import REGION_ANNOTATED_PATTERN, CONTINENT_ANNOTATED_PATTERN, CredentialName
 
 try:
     import logfire
@@ -35,14 +37,20 @@ try:
         collect_system_metrics=True,
     )
 except ImportError as e:
-    logging.warning(f"Error on importing the LogFire: {e}")
+    logging.warning(f"Error on importing the LogFire: {e}", exc_info=True)
     logfire = None
 
+class DefaultSettings(BaseModel):
+    region: str = Field("VN2", title="Region", description="The default region",
+                        pattern=REGION_ANNOTATED_PATTERN)
+    continent: str = Field("ASIA", title="Continent", description="The default continent",
+                           pattern=CONTINENT_ANNOTATED_PATTERN)
+    locale: str = Field("en_US", title="Locale", description="The default locale")
+    timeout: dict = Field(default_factory=dict, title="Timeout", description="The default timeout for the HTTP request")
+    auth: dict = Field(default_factory=dict, title="Authentication", description="The API key for the Riot API")
 
-# import os
-# import sys
-# print(os.environ["PYTHONPATH"])
-# print(sys.path)
+    def GetAuthOfKeyName(self, key_name: str) -> str:
+        return self.auth[key_name]
 
 # ==================================================================================================
 @lru_cache(maxsize=8, typed=True)
@@ -66,44 +74,31 @@ def ReloadExpiryTimeForMiddleware() -> datetime:
                               timezone=timezone)
 
 
-class RIOTAPI_USER(BaseModel):
-    PUUID: str | None = Field(None, title="PUUID", description="The PUUID of the player you want to track")
-    USERNAME: str = Field(..., title="Username", description="The username of the player you want to track")
-    TAGLINE: str = Field(..., title="Tagline", description="The tagline of the player you want to track")
-    REGION: str = Field(..., title="Region", description="The region of the player you want to track")
-
-
-class USER_CFG(BaseModel):
-    REGION: str = Field(..., title="Region", description="The region of the player you want to track")
-    TIMEOUT: dict = Field(default_factory=dict, title="Timeout", description="The timeout for the HTTP request")
-    AUTH: dict = Field(default_factory=dict, title="Authorization", description="The API key for the Riot API")
-
-
 def ReloadAuthenticationForRouter(application: FastAPI) -> int:
     with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_env:
-        config = toml.load(riotapi_env)
-        # Set tracking users
-        cfg = config["riotapi"]["user"]
-        application.default_user = RIOTAPI_USER(**cfg)
+        with open(RIOTAPI_SECRETS_CFG_FILE, 'r') as riotapi_secret:
+            env_config = toml.load(riotapi_env)["riotapi"]["default"]
+            secret_config = toml.load(riotapi_secret)["riotapi"]
 
-        # Set authentication/timeout/... for shared resources
-        user_cfg = {
-            "REGION": config["riotapi"]["user"]["REGION"],
-            "TIMEOUT": config["riotapi"]["httpx_timeout"],
-            "AUTH": config["riotapi"]["key"]
-        }
-        t = USER_CFG(**user_cfg)
-        application.default_user_cfg = t
-
-        if hasattr(application, "lst_routers"):
-            logging.debug("Reloading the authentication for the routers also ...")
-            lst_routers = application.lst_routers
-            for rt in lst_routers:
-                rt.default_user = application.default_user
-                rt.default_user_cfg = t
+            # Set default value
+            dft: dict = {
+                "REGION": env_config["REGION"],
+                "CONTINENT": env_config["CONTINENT"],
+                "LOCALE": env_config["LOCALE"],
+                "TIMEOUT": env_config["httpx_timeout"],
+                "AUTH": {cred: secret_config[cred]["key"] for key, cred in CredentialName.__members__.items()
+                         if cred in secret_config}
+            }
+            default: DefaultSettings = DefaultSettings(**dft)
+            application.default = default
+            if hasattr(application, "lst_routers"):
+                logging.debug("Reloading the authentication for the routers also ...")
+                lst_routers = application.lst_routers
+                for rt in lst_routers:
+                    rt.default = default
 
         # Return the refresh rate for next reload
-        return config["riotapi"].get("REFRESH_RATE", 300)  # 5 minutes
+        return min(REFRESH_RATE_IF_NOT_FOUND, env_config.get("REFRESH_RATE", MIN_REFRESH_RATE_IF_FOUND))
 
 
 @asynccontextmanager
@@ -223,7 +218,9 @@ logging.info("The FastAPI application has been initialized. Adding the middlewar
 SECRET_KEY = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=DAY, same_site='lax',
                    https_only=False)  # 1-day session
-app.add_middleware(ExpiryTimeMiddleware, deadline=ReloadExpiryTimeForMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=2**10)
+app.add_middleware(ExpiryDateMiddleware, deadline=ReloadExpiryTimeForMiddleware)
+
 with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
     config = toml.load(riotapi_environment_global)
     cfg = config["riotapi"]["limit"]["global"]
@@ -231,8 +228,8 @@ with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
     for _, value in cfg.items():
         MAX_REQUESTS: int = value["MAX_REQUESTS"]
         REQUESTS_INTERVAL: int = value["REQUESTS_INTERVAL"]
-        app.add_middleware(RateLimiterMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
-# app.add_middleware(ReworkedApitallyMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
+        app.add_middleware(RateLimitMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
+# app.add_middleware(MonitorMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
 #                    identify_consumer_callback=None)
 logging.info("The middlewares have been added to the application ...")
 

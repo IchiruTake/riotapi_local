@@ -119,4 +119,4 @@ REGION_TTL_ENTRY: int = BASE_TTL_ENTRY * (REGION_ANNOTATED_PATTERN.count("|") + 
 CONTINENT_TTL_ENTRY: int = BASE_TTL_ENTRY * (CONTINENT_ANNOTATED_PATTERN.count("|") + 1)
 
 # ==================================================================================================
-# Response Headers
+

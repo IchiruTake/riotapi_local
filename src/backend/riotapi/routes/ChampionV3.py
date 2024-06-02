@@ -4,23 +4,12 @@ from typing import Annotated
 from cachetools.func import ttl_cache
 from fastapi import Query
 from fastapi.routing import APIRouter
-from pydantic import BaseModel
 
 from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
-
-
-# ==================================================================================================
-class ChampionV3_Endpoints:
-    ChampionRotation: str = '/lol/platform/v3/champion-rotations'
-
-
-class ChampionInfo(BaseModel):
-    maxNewPlayerLevel: int
-    freeChampionIdsForNewPlayers: list[int]
-    freeChampionIds: list[int]
-
+from src.backend.riotapi.routes._endpoints import ChampionV3_Endpoints
+from src.backend.riotapi.models.ChampionV3 import ChampionInfo
 
 # ==================================================================================================
 router = APIRouter()

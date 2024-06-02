@@ -4,31 +4,12 @@ from typing import Annotated
 from cachetools.func import ttl_cache
 from fastapi import Path, Query
 from fastapi.routing import APIRouter
-from pydantic import BaseModel, Field
 
 from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
     REGION_ANNOTATED_PATTERN
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
-
-
-# ==================================================================================================
-class AccountV1_Endpoints:
-    AccountByPuuid: str = '/riot/account/v1/accounts/by-puuid/{puuid}'
-    AccountByRiotId: str = '/riot/account/v1/accounts/by-riot-id/{userName}/{tagLine}'
-    ActiveShardForPlayer: str = '/riot/account/v1/active-shards/by-game/{game}/by-puuid/{puuid}'
-
-
-class AccountDto(BaseModel):
-    puuid: str = Field(..., title="PUUID", description="The PUUID of the player you want to track")
-    gameName: str = Field(..., title="Player Name", description="The player's name of the player you want to track")
-    tagLine: str = Field(..., title="Tagline", description="The tagline of the player you want to track")
-
-
-class ActiveShardDto(BaseModel):
-    puuid: str = Field(..., title="PUUID", description="The PUUID of the player you want to track")
-    game: str = Field(..., title="Game", description="The game of the player you want to track")
-    ap: str = Field(..., title="Active Shard", description="The active shard of the player you want to track")
-
+from src.backend.riotapi.routes._endpoints import AccountV1_Endpoints
+from src.backend.riotapi.models.AccountV1 import AccountDto, ActiveShardDto
 
 # ==================================================================================================
 router = APIRouter()

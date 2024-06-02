@@ -21,9 +21,6 @@ from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMo
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 from src.utils.utils import GetDurationOfPerfCounterInMs
 
-__all__ = ["ReworkedApitallyMiddleware"]
-
-
 # =============================================================================
 def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
     if isinstance(app, Router):
@@ -66,7 +63,7 @@ def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
 
 
 # =============================================================================
-class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
+class MonitorMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, unmonitored_paths: list[str] | None,
                  identify_consumer_callback: Callable[[Request], str | None] | None = None):
         self.unmonitored_paths: list[str] = unmonitored_paths or []
@@ -137,7 +134,7 @@ class ReworkedApitallyMiddleware(BaseHTTPMiddleware):
                 return json.loads(response.body)
             except json.JSONDecodeError:  # pragma: no cover
                 return None
-        elif hasattr(response, "body_iterator"):
+        elif hasattr(response, "body_iterator"): # StreamResponse
             try:
                 response_body = [section async for section in response.body_iterator]
                 response.body_iterator = iterate_in_threadpool(iter(response_body))
