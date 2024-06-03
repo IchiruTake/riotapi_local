@@ -4,7 +4,6 @@ https://github.com/RiotGames/developer-relations/issues/928
 
 """
 
-
 from time import perf_counter
 from typing import Annotated
 
@@ -17,7 +16,6 @@ from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiot
 from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
 from src.backend.riotapi.routes._endpoints import MatchV5_Endpoints
 from src.backend.riotapi.models.MatchV5 import MatchDto
-
 
 router = APIRouter()
 SRC_ROUTE: str = str(__name__).split('.')[-1]
@@ -34,7 +32,7 @@ async def ListMatches(
         type: str | None = None,
         start: Annotated[int, Query(default=20, ge=0)] | None = 0,
         count: Annotated[int, Query(default=20, ge=0, le=100)] | None = 20,
-    ) -> list[str]:
+) -> list[str]:
     f"""
     {MatchV5_Endpoints.ListMatchesByPuuid}
     List match ids of a player by puuid.

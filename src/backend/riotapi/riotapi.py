@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp
+from starlette.routing import Route
 
 from src.backend.riotapi.client import HttpxAsyncClient
 from src.backend.riotapi.middlewares.LocalMiddleware import ExpiryDateMiddleware, RateLimitMiddleware
@@ -259,11 +260,13 @@ if logfire is not None:
 async def root():
     return {"message": "Hello World. Your application can now be accessed at /docs or /redoc."}
 
+
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION)
 @app.get("/tags", tags=["tags"], response_model=dict[str, list[str]])
 async def export() -> dict[str, list[str]]:
     tags: dict[str, list[str]] = {}
     for route in app.routes:
+        assert isinstance(route, Route)
         if hasattr(route, "tags") and hasattr(route, "path"):
             tags[route.path] = route.tags
     return tags
