@@ -4,22 +4,28 @@ import logging
 import re
 from typing import Any, Callable
 
+from asgiref.typing import ASGI3Application, ASGIReceiveCallable, ASGISendCallable, ASGISendEvent
+from asgiref.typing import Scope as ASGI3Scope
 from httpx import HTTPStatusError
 from starlette.concurrency import iterate_in_threadpool
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.base import RequestResponseEndpoint
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import Response
-from starlette.routing import BaseRoute, Match, Router
+from starlette.routing import BaseRoute, Match, Router, Route
 from starlette.schemas import EndpointInfo, SchemaGenerator
-from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
+from starlette.types import Scope as StarletteScope
+from starlette.types import Send, Receive, Message
 
+from src.backend.riotapi.middlewares.LocalMiddleware import BaseMiddleware
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
 from src.utils.utils import GetDurationOfPerfCounterInMs
+
 
 # =============================================================================
 def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
@@ -29,7 +35,7 @@ def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable
         _register_shutdown_handler(app.app, shutdown_handler)
 
 
-def _list_routes(app: ASGIApp | Router) -> list[BaseRoute]:
+def _list_routes(app: ASGIApp | Router) -> list[BaseRoute | Route]:
     if isinstance(app, Router):
         return app.routes
     elif hasattr(app, "app"):
@@ -63,9 +69,10 @@ def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
 
 
 # =============================================================================
-class MonitorMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, unmonitored_paths: list[str] | None,
+class MonitorMiddleware(BaseMiddleware):
+    def __init__(self, app: ASGIApp | ASGI3Application, unmonitored_paths: list[str] | None,
                  identify_consumer_callback: Callable[[Request], str | None] | None = None):
+        super().__init__(app, accept_scope=None)
         self.unmonitored_paths: list[str] = unmonitored_paths or []
         self._unmonitored_paths_regex: list[tuple[str, re.Pattern]] = \
             [(path, re.compile(path)) for path in (unmonitored_paths or [])]
@@ -77,10 +84,37 @@ class MonitorMiddleware(BaseHTTPMiddleware):
             _register_shutdown_handler(app, self.client.shutdown)
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def __call__(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
+                       send: ASGISendCallable | Send) -> None:
+        if not (await super()._precheck(scope, receive, send)):
+            await self.app(scope, receive, send)
+            return None
+        # Pre-construct response
+        response_content: bytes | str | None = None
+        response_status_code: int = 200
+        response_headers: dict | None = {}
+        response_media_type: str | None = None
+
+        async def _send(message: Message | ASGISendEvent) -> None:
+            nonlocal response_content, response_status_code, response_headers, response_media_type
+            if message["type"] == "http.response.start":
+                response_status_code = message["status"]
+                response_headers = MutableHeaders(scope=message)
+                response_media_type = (response_headers.get("content-type", None) or
+                                       response_headers.get("Content-Type", None))
+            elif message["type"] == "http.response.body":
+                response_content = message.get("body", b"")
+            await send(message)
+
+        request: Request = Request(scope)
         start_time = GET_TIME_COUNTER()
+
         try:
-            response = await call_next(request)
+            await self.app(scope, receive, _send)
+            response: Response = Response(content=response_content, status_code=response_status_code,
+                                          headers=response_headers, media_type=response_media_type,
+                                          background=None)
+
         except BaseException as e:
             await self.add_request(
                 request=request,
@@ -97,7 +131,6 @@ class MonitorMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 response_time=GetDurationOfPerfCounterInMs(start_time),
             )
-        return response
 
     async def add_request(self, request: Request, response: Response | None, status_code: int,
                           response_time: float, exception: BaseException | None = None) -> None:

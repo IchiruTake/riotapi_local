@@ -101,11 +101,11 @@ LIFETIME_TTL_DURATION: int = WEEK  # 1 week
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=LIFETIME_TTL_DURATION)
-def GeneratePattern(source_input: str, account: str, use_values: bool = False) -> str:
+def GeneratePattern(source_input: str, account: str, use_values_if_region: bool = False) -> str:
     match source_input:
         case "REGION":
             source = RegionRoute[account]
-            if use_values:
+            if use_values_if_region:
                 return fr'{"|".join(source.values())}'
             return fr'{"|".join(source.keys())}'
         case "CONTINENT":

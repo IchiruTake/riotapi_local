@@ -4,7 +4,7 @@ import random
 import string
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from functools import lru_cache
+from time import perf_counter
 from zoneinfo import ZoneInfo
 
 import toml
@@ -18,16 +18,17 @@ from starlette.routing import Route
 
 from src.backend.riotapi.client import HttpxAsyncClient
 from src.backend.riotapi.middlewares.LocalMiddleware import ExpiryDateMiddleware, RateLimitMiddleware
-from src.backend.riotapi.middlewares.monitor import MonitorMiddleware
+from src.backend.riotapi.middlewares.MonitorMiddleware import MonitorMiddleware
 from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
 from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
 from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
 from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
 from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
+from src.backend.riotapi.routes.default import DefaultSettings
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
-from src.utils.static import (DAY, RIOTAPI_ENV_CFG_FILE, EXTENDED_TTL_DURATION, REFRESH_RATE_IF_NOT_FOUND,
-                              MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
-from src.utils.static import REGION_ANNOTATED_PATTERN, CONTINENT_ANNOTATED_PATTERN, CredentialName
+from src.utils.static import (DAY, RIOTAPI_ENV_CFG_FILE, BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION,
+                              REFRESH_RATE_IF_NOT_FOUND, MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
+from src.utils.static import CredentialName
 
 try:
     import logfire
@@ -41,28 +42,13 @@ except ImportError as e:
     logging.warning(f"Error on importing the LogFire: {e}", exc_info=True)
     logfire = None
 
-class DefaultSettings(BaseModel):
-    region: str = Field("VN2", title="Region", description="The default region",
-                        pattern=REGION_ANNOTATED_PATTERN)
-    continent: str = Field("ASIA", title="Continent", description="The default continent",
-                           pattern=CONTINENT_ANNOTATED_PATTERN)
-    locale: str = Field("en_US", title="Locale", description="The default locale")
-    timeout: dict = Field(default_factory=dict, title="Timeout", description="The default timeout for the HTTP request")
-    auth: dict = Field(default_factory=dict, title="Authentication", description="The API key for the Riot API")
-
-    def GetAuthOfKeyName(self, key_name: str) -> str:
-        return self.auth[key_name]
 
 # ==================================================================================================
-@lru_cache(maxsize=8, typed=True)
-def _load_datetime(year: int, month: int, day: int, hour: int, minute: int, second: int, timezone: str) -> datetime:
-    return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second, tzinfo=ZoneInfo(timezone))
-
-
+# Use TTL Cache with Expiry Time to Refresh the Middleware automatically
+@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 def ReloadExpiryTimeForMiddleware() -> datetime:
     with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_env:
-        config = toml.load(riotapi_env)
-        deadline_cfg: dict = config['riotapi']['key']['expiry_date']
+        deadline_cfg: dict = toml.load(riotapi_env)['riotapi']['expiry_date']
         tomorrow = datetime.now(tz=GetProgramTimezone()) + timedelta(days=1)
         year: int = deadline_cfg.get('YEAR', tomorrow.year)
         month: int = deadline_cfg.get('MONTH', tomorrow.month)
@@ -71,8 +57,9 @@ def ReloadExpiryTimeForMiddleware() -> datetime:
         minute: int = deadline_cfg.get('MINUTE', tomorrow.minute)
         second: int = deadline_cfg.get('SECOND', tomorrow.second)
         timezone: str = deadline_cfg.get('TIMEZONE', GetProgramTimezoneName())
-        return _load_datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second,
-                              timezone=timezone)
+
+        return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second,
+                        tzinfo=ZoneInfo(timezone))
 
 
 def ReloadAuthenticationForRouter(application: FastAPI) -> int:

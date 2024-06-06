@@ -58,7 +58,7 @@ Response from {response.request.method} {response.url} with status code {respons
         pass
 
 
-def _RegionToHost(region: str) -> str:
+def _RegionHostToURLHost(region: str) -> str:
     return f"https://{region.lower()}.api.riotgames.com"
 
 
@@ -143,7 +143,7 @@ def GetRiotClient(region: str, credential_name: str, auth: dict | None, timeout:
                                     write=timeout.WRITE, pool=timeout.POOL)
 
     # No proxy/proxies/mounts are supported here -> Declare for informative
-    client = httpx.AsyncClient(base_url=_RegionToHost(region), verify=_VERIFY, http1=_HTTP1, http2=_HTTP2,
+    client = httpx.AsyncClient(base_url=_RegionHostToURLHost(region), verify=_VERIFY, http1=_HTTP1, http2=_HTTP2,
                                proxy=_PROXY, proxies=_PROXIES, mounts=_MOUNTS, follow_redirects=_FOLLOW_REDIRECTS,
                                params=riotapi_client_settings.PARAMS, headers=riotapi_client_settings.HEADERS,
                                timeout=riotapi_timeout, default_encoding=_DEFAULT_ENCODING)

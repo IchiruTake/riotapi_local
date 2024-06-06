@@ -16,21 +16,23 @@ from starlette.datastructures import MutableHeaders
 # ==============================================================================
 # Rate Limiting
 class BaseMiddleware:
-    def __init__(self, application: ASGIApp | ASGI3Application, accept_scope: str | list[str] = "http"):
+    def __init__(self, application: ASGIApp | ASGI3Application, accept_scope: str | list[str] | None = "http"):
         self.app: ASGIApp | ASGI3Application = application
         accept_scope = list(set(accept_scope))
         _accept = ["http", "websocket", "lifespan"]
+        msg: str = f"Invalid scope: {accept_scope}. Must be one or part of {', '.join(_accept)}, or None."
         if isinstance(accept_scope, str):
             if accept_scope not in _accept:
-                msg: str = f"Invalid scope: {accept_scope}. Must be one of {', '.join(_accept)}."
                 logging.critical(msg)
                 raise ValueError(msg)
         elif isinstance(accept_scope, list):
             for scope in accept_scope:
                 if scope not in _accept:
-                    msg: str = f"Invalid scope: {scope}. Must be one of {', '.join(_accept)}."
                     logging.critical(msg)
                     raise ValueError(msg)
+        elif accept_scope is not None:
+            logging.critical(msg)
+            raise ValueError(msg)
         self._scope: str | list[str] = accept_scope
 
     async def _precheck(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
