@@ -4,6 +4,8 @@ This also include a base configuration for the log system, including the default
 
 
 """
+from functools import cached_property
+
 from cachetools.func import ttl_cache
 from enum import StrEnum
 
@@ -83,12 +85,27 @@ _MOUNTLIST: dict[str, str] = {
 for key, value in _MOUNTLIST.items():
     RegionRoute[key] = RegionRoute[value]
 
+
 class CredentialName(StrEnum):
     FULL: str = "full"
     LOL: str = "lol"
     LOR: str = "lor"
     TFT: str = "tft"
     VAL: str = "val"
+
+    @staticmethod
+    @cached_property
+    def PriorityDict(self) -> dict:
+        return {
+            CredentialName.FULL: 2,
+            CredentialName.LOL: 1,
+            CredentialName.LOR: 1,
+            CredentialName.TFT: 1,
+            CredentialName.VAL: 1,
+        }
+
+    def GetPriority(self) -> int:
+        return CredentialName.PriorityDict[self]
 
 
 # ==================================================================================================
