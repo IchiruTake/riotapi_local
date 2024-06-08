@@ -1,4 +1,3 @@
-import pydantic
 import json
 from src.backend.riotapi.routes.MatchV5 import MatchDto
 

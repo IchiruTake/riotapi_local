@@ -4,21 +4,22 @@ from typing import Annotated
 from cachetools.func import ttl_cache
 from fastapi import Query
 from fastapi.routing import APIRouter
+from fastapi.responses import Response
 
-from src.backend.riotapi.routes._region import GetRiotClientByUserRegion, QueryToRiotAPI, \
-    REGION_ANNOTATED_PATTERN
-from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION
+from src.backend.riotapi.routes._query import QueryToRiotAPI
+from src.static.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, REGION_ANNOTATED_PATTERN, CREDENTIALS
 from src.backend.riotapi.routes._endpoints import ChampionV3_Endpoints
 from src.backend.riotapi.models.ChampionV3 import ChampionInfo
 
 # ==================================================================================================
 router = APIRouter()
 SRC_ROUTE: str = str(__name__).split('.')[-1]
-
+_CREDENTIALS = [CREDENTIALS.LOL, CREDENTIALS.FULL]
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/", response_model=ChampionInfo, tags=[SRC_ROUTE])
 async def GetChampionRotation(
+        response: Response,
         region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None
     ) -> ChampionInfo:
     f"""
@@ -32,6 +33,6 @@ async def GetChampionRotation(
         The region of the player.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=SRC_ROUTE, router=router)
     path_endpoint: str = ChampionV3_Endpoints.ChampionRotation
-    return await QueryToRiotAPI(client, path_endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=path_endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)

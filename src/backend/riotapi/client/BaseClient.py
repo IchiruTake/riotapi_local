@@ -4,7 +4,7 @@ import time
 from typing import Callable
 
 import httpx
-from src.utils.utils import GetDurationOfPerfCounterInMs
+from src.utils.timer import GetDurationOfPerfCounterInMs
 
 
 # ==================================================================================================

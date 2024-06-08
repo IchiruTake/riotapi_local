@@ -12,8 +12,8 @@ from uuid import uuid4
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Field, SQLModel, create_engine, Session
 
-from src.utils.static import (SYNC_INTERVAL, INITIAL_SYNC_INTERVAL, INITIAL_SYNC_INTERVAL_DURATION, SQLITE_DB,
-                              SQLITE_PARAMS, TRANSACTION_BATCH_SIZE, MAX_FAILED_TRANSACTION)
+from src.static.static import (SYNC_INTERVAL, INITIAL_SYNC_INTERVAL, INITIAL_SYNC_INTERVAL_DURATION, SQLITE_DB,
+                               SQLITE_PARAMS, TRANSACTION_BATCH_SIZE, MAX_FAILED_TRANSACTION)
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.request_counter import RequestCounter, RequestInfo, \
     RequestAnalysis
 from src.backend.riotapi.middlewares.monitor_src.healthcheck.server_counter import ServerErrorCounter, ServerError

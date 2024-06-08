@@ -26,3 +26,12 @@ class MatchV5_Endpoints:
     ListMatchesByPuuid: str = '/lol/match/v5/matches/by-puuid/{puuid}/ids'
     GetMatchById: str = '/lol/match/v5/matches/{matchId}'
     GetMatchTimelineById: str = '/lol/match/v5/matches/{matchId}/timeline'
+
+class ClashV1_Endpoints:
+    GetBySummonerId: str = "/lol/clash/v1/players/by-summoner/{summonerId}"
+    GetByTeamId: str = "/lol/clash/v1/teams/{teamId}"
+    GetTournaments: str = "/lol/clash/v1/tournaments"
+    GetTournamentByTeamId: str = "/lol/clash/v1/tournaments/by-team/{teamId}"
+    GetTournamentByTournamentId: str = "/lol/clash/v1/tournaments/{tournamentId}"
+
+

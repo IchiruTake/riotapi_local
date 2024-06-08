@@ -10,37 +10,24 @@ from zoneinfo import ZoneInfo
 import toml
 from cachetools.func import ttl_cache
 from fastapi import FastAPI, APIRouter
-from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp
 from starlette.routing import Route
 
 from src.backend.riotapi.client import HttpxAsyncClient
-from src.backend.riotapi.middlewares.LocalMiddleware import ExpiryDateMiddleware, RateLimitMiddleware
-from src.backend.riotapi.middlewares.MonitorMiddleware import MonitorMiddleware
-from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
-from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
-from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
-from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
-from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
-from src.backend.riotapi.routes.default import DefaultSettings
+from src.backend.riotapi.middlewares.LocalMiddleware import (ExpiryDateMiddleware, RateLimitMiddleware,
+                                                             HeaderHardeningMiddleware)
+# from src.backend.riotapi.routes.AccountV1 import router as AccountV1_router
+# from src.backend.riotapi.routes.LolChallengesV1 import router as LolChallengesV1_router
+# from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
+# from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
+# from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
+from src.backend.riotapi.inapp import DefaultSettings
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
-from src.utils.static import (DAY, RIOTAPI_ENV_CFG_FILE, BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION,
-                              REFRESH_RATE_IF_NOT_FOUND, MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
-from src.utils.static import CredentialName
-
-try:
-    import logfire
-    logfire.configure(
-        send_to_logfire=False,
-        show_summary=True,
-        trace_sample_rate=0.8,
-        collect_system_metrics=True,
-    )
-except ImportError as e:
-    logging.warning(f"Error on importing the LogFire: {e}", exc_info=True)
-    logfire = None
+from src.static.static import (DAY, RIOTAPI_ENV_CFG_FILE, BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION,
+                               REFRESH_RATE_IF_NOT_FOUND, MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
+from src.static.static import CREDENTIALS
 
 
 # ==================================================================================================
@@ -74,16 +61,23 @@ def ReloadAuthenticationForRouter(application: FastAPI) -> int:
                 "CONTINENT": env_config["CONTINENT"],
                 "LOCALE": env_config["LOCALE"],
                 "TIMEOUT": env_config["httpx_timeout"],
-                "AUTH": {cred: secret_config[cred]["key"] for key, cred in CredentialName.__members__.items()
+                "AUTH": {cred: secret_config[cred]["key"] for key, cred in CREDENTIALS.__members__.items()
                          if cred in secret_config}
             }
+            if env_config.get("MATCH_CONTINENT", None) is None:
+                dft["MATCH_CONTINENT"] = dft["CONTINENT"]
+                if dft["CONTINENT"] == "ASIA":
+                    dft["MATCH_CONTINENT"] = "SEA"
+            else:
+                dft["MATCH_CONTINENT"] = env_config["MATCH_CONTINENT"]
+
             default: DefaultSettings = DefaultSettings(**dft)
-            application.default = default
+            application.inapp_default = default
             if hasattr(application, "lst_routers"):
                 logging.debug("Reloading the authentication for the routers also ...")
                 lst_routers = application.lst_routers
                 for rt in lst_routers:
-                    rt.default = default
+                    rt.inapp_default = default
 
         # Return the refresh rate for next reload
         return min(REFRESH_RATE_IF_NOT_FOUND, env_config.get("REFRESH_RATE", MIN_REFRESH_RATE_IF_FOUND))
@@ -104,7 +98,7 @@ async def RiotapiLifespan(application: ASGIApp | FastAPI):
         while MAX_REPETITIONS == -1 or CURRENT_REPETITIONS < MAX_REPETITIONS:
             next_trigger: int = ReloadAuthenticationForRouter(application)
             await HttpxAsyncClient.CleanUpPool()
-            logging.info(f"Reloaded the authentication, and pool cleanup in the {RIOTAPI_ENV_CFG_FILE} file "
+            logging.info(f"Reloaded the authentication and pool cleanup in the {RIOTAPI_ENV_CFG_FILE} file "
                          f"for the resource update")
 
             if MAX_REPETITIONS != -1:
@@ -124,15 +118,8 @@ async def RiotapiLifespan(application: ASGIApp | FastAPI):
     # Clean up and release the resources
     MAX_REPETITIONS = CURRENT_REPETITIONS  # Stop the loop
     await HttpxAsyncClient.CleanUpPool()
-    try:
-        import logfire
-        logfire.shutdown()
-    except ImportError as e:
-        logging.warning(f"Error on importing the LogFire: {e}")
-    pass
     logging.info("Safely shutting down the application. The HTTPS connection is cleanup ...")
     logging.shutdown()
-
 
 
 # ==================================================================================================
@@ -208,39 +195,34 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=DAY, same_s
                    https_only=False)  # 1-day session
 app.add_middleware(GZipMiddleware, minimum_size=2**10)
 app.add_middleware(ExpiryDateMiddleware, deadline=ReloadExpiryTimeForMiddleware)
+app.add_middleware(HeaderHardeningMiddleware)
 
 with open(RIOTAPI_ENV_CFG_FILE, 'r') as riotapi_environment_global:
     config = toml.load(riotapi_environment_global)
-    cfg = config["riotapi"]["limit"]["global"]
+    cfg = config["riotapi"]["limit"]
     # Set global rate limit
     for _, value in cfg.items():
         MAX_REQUESTS: int = value["MAX_REQUESTS"]
         REQUESTS_INTERVAL: int = value["REQUESTS_INTERVAL"]
-        app.add_middleware(RateLimitMiddleware, max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
-# app.add_middleware(MonitorMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
+        app.add_middleware(RateLimitMiddleware,
+                           max_requests=MAX_REQUESTS, interval_by_second=REQUESTS_INTERVAL)
+# _app.add_middleware(MonitorMiddleware, unmonitored_paths=["/docs", "/redoc", "/openapi.json"],
 #                    identify_consumer_callback=None)
 logging.info("The middlewares have been added to the application ...")
 
 # ==================================================================================================
 logging.info("Including the routers in the application ...")
 APIROUTER_MAPPING: dict[str, APIRouter] = {
-    "/Account/v1": AccountV1_router,
-    "/LolChallenges/v1": LolChallengesV1_router,
-    "/Match/v5": MatchV5_router,
-    "/ChampionMastery/v4": ChampionMasteryV4_router,
-    "/Champion/v3": ChampionV3_router,
+    # "/Account/v1": AccountV1_router,
+    # "/LolChallenges/v1": LolChallengesV1_router,
+    # "/Match/v5": MatchV5_router,
+    # "/ChampionMastery/v4": ChampionMasteryV4_router,
+    # "/Champion/v3": ChampionV3_router,
 }
 for path, router in APIROUTER_MAPPING.items():
     app.include_router(router, prefix=path)
 app.lst_routers = [r for _, r in APIROUTER_MAPPING.items()]
 logging.info("The routers have been included in the application, adding the dependency resource is done ...")
-
-# ==================================================================================================
-# Initiate the LogFire
-logging.info("The LogFire has been initialized ...")
-if logfire is not None:
-    logfire.instrument_fastapi(app)
-
 
 # ==================================================================================================
 @app.get("/_health", tags=["health"], response_model=dict[str, str])
@@ -249,7 +231,7 @@ async def root():
 
 
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION)
-@app.get("/tags", tags=["tags"], response_model=dict[str, list[str]])
+@app.get("/_tags", tags=["tags"], response_model=dict[str, list[str]])
 async def export() -> dict[str, list[str]]:
     tags: dict[str, list[str]] = {}
     for route in app.routes:

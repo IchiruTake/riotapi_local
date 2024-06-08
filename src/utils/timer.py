@@ -2,7 +2,7 @@ from time import perf_counter
 from typing import Sequence
 
 
-def convertBytesToHumanReadable(size: int, divisor: int = 1024, scales_constraint: Sequence[str] | None = None) \
+def ConvertBytesToHumanReadable(size: int, divisor: int = 1024, scales_constraint: Sequence[str] | None = None) \
         -> tuple[int, int | float, str]:
     """
     This function is to convert bytes to human-readable format
@@ -33,7 +33,7 @@ def convertBytesToHumanReadable(size: int, divisor: int = 1024, scales_constrain
     return size_int, size_float, c_scale
 
 
-def castToBytes(size: str) -> int:
+def ConvertToBytes(size: str) -> int:
     if "i" in size:
         scales = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
         divisor = 1024
@@ -57,44 +57,11 @@ def castToBytes(size: str) -> int:
         raise ValueError(f"The unit {unit} is invalid, expecting a valid unit.")
     result = float(datasize) * (divisor ** scale_index)
     if isinstance(result, float) and not result.is_integer():
-        raise ValueError(f"The number of {datasize} is invalid, expecting a valid size.")
+        raise ValueError(f"The number of {datasize} is invalid or some bytes are lost, expecting a valid size.")
     final_result = int(result)
     if final_result < 0:
         raise ValueError(f"The size {size} is invalid, expecting a non-negative size.")
     return final_result
-
-def formatFloat(value: int | float, precision: int = 2, max_number: int = 3) -> str:
-    """
-    This function is to format the float number
-    """
-    if max_number < 1:
-        raise ValueError("max_number must be a positive integer")
-    if precision < 0:
-        raise ValueError("precision must be a non-negative integer")
-    if max_number < precision:
-        raise ValueError("max_number must be greater than precision")
-
-    try:
-        result = f"{float(value):.{precision}f}"  # Use naive method to format the float number
-        if "." in result and len(result) <= max_number + 1:
-            return result
-        if "." not in result and len(result) <= max_number:
-            return result
-    except ValueError:
-        raise ValueError("The value must be a valid number")
-
-    # Split the number and do the counting if the number is too long (rare-case but I don't
-    # guarantee that it will not happen)
-    counter: int = 0
-    result = []
-    for idx, char in enumerate(str(value)):
-        result.append(char)
-        if char.isdigit():
-            counter += 1
-        if counter == max_number:
-            next_char = str(value)[idx + 1]
-            break
-    return "".join(result)
 
 
 def GetDurationOfPerfCounterInMs(t: float) -> float:

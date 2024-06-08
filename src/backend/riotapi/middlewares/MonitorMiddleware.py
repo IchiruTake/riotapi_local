@@ -24,21 +24,21 @@ from src.backend.riotapi.middlewares.LocalMiddleware import BaseMiddleware
 from src.backend.riotapi.middlewares.monitor_src.client.AsyncClient import AsyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.SyncClient import SyncMonitorClient
 from src.backend.riotapi.middlewares.monitor_src.client.base import GET_TIME_COUNTER
-from src.utils.utils import GetDurationOfPerfCounterInMs
+from src.utils.timer import GetDurationOfPerfCounterInMs
 
 
 # =============================================================================
 def _register_shutdown_handler(app: ASGIApp | Router, shutdown_handler: Callable[[], Any]) -> None:
     if isinstance(app, Router):
         app.add_event_handler("shutdown", shutdown_handler)
-    elif hasattr(app, "app"):
+    elif hasattr(app, "_app"):
         _register_shutdown_handler(app.app, shutdown_handler)
 
 
 def _list_routes(app: ASGIApp | Router) -> list[BaseRoute | Route]:
     if isinstance(app, Router):
         return app.routes
-    elif hasattr(app, "app"):
+    elif hasattr(app, "_app"):
         return _list_routes(app.app)
     return []  # pragma: no cover
 
@@ -72,7 +72,6 @@ def _get_openapi(app: ASGIApp, openapi_url: str) -> str | None:
 class MonitorMiddleware(BaseMiddleware):
     def __init__(self, app: ASGIApp | ASGI3Application, unmonitored_paths: list[str] | None,
                  identify_consumer_callback: Callable[[Request], str | None] | None = None):
-        super().__init__(app, accept_scope=None)
         self.unmonitored_paths: list[str] = unmonitored_paths or []
         self._unmonitored_paths_regex: list[tuple[str, re.Pattern]] = \
             [(path, re.compile(path)) for path in (unmonitored_paths or [])]
@@ -82,36 +81,54 @@ class MonitorMiddleware(BaseMiddleware):
         self.client.start_sync_loop()
         if hasattr(self.client, "shutdown") and callable(self.client.shutdown):
             _register_shutdown_handler(app, self.client.shutdown)
-        super().__init__(app)
+        super().__init__(app, accept_scope=None)
 
     async def __call__(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
                        send: ASGISendCallable | Send) -> None:
         if not (await super()._precheck(scope, receive, send)):
-            await self.app(scope, receive, send)
+            await self._app(scope, receive, send)
             return None
         # Pre-construct response
-        response_content: bytes | str | None = None
+        response_length: int | None = 0
         response_status_code: int = 200
         response_headers: dict | None = {}
         response_media_type: str | None = None
+        response_body: bytes | None = b""
+        arr = bytearray()
 
         async def _send(message: Message | ASGISendEvent) -> None:
-            nonlocal response_content, response_status_code, response_headers, response_media_type
+            nonlocal response_length, response_status_code, response_headers, response_media_type
             if message["type"] == "http.response.start":
                 response_status_code = message["status"]
                 response_headers = MutableHeaders(scope=message)
                 response_media_type = (response_headers.get("content-type", None) or
                                        response_headers.get("Content-Type", None))
+                response_length = response_headers.get("content-length", 0) or response_headers.get("Content-Length", 0)
             elif message["type"] == "http.response.body":
-                response_content = message.get("body", b"")
+                nonlocal response_body
+                more_body: bool = message.get("more_body", False)
+                if not more_body:
+                    response_body = message.get("body", b"")
+                else:
+                    while more_body:
+                        arr.extend(message.get("body", b""))
+                        await send(message)
+                        more_body = message.get("more_body", False)
+
             await send(message)
 
         request: Request = Request(scope)
         start_time = GET_TIME_COUNTER()
 
         try:
-            await self.app(scope, receive, _send)
-            response: Response = Response(content=response_content, status_code=response_status_code,
+            await self._app(scope, receive, _send)
+            if arr:
+                response_body = bytes(arr)
+            if response_length == 0:
+                response_length = len(response_body)
+                response_headers["Content-Length"] = str(response_length)
+
+            response: Response = Response(content=response_body, status_code=response_status_code,
                                           headers=response_headers, media_type=response_media_type,
                                           background=None)
 
@@ -144,9 +161,11 @@ class MonitorMiddleware(BaseMiddleware):
         # [2]: Accumulate the request/response data
         consumer = self.get_consumer(request)
         c = self.client.request_counter[0]
+        request_size: int = request.headers.get("Content-Length", len(await request.body()))
+        response_size: int = response.headers.get("Content-Length", 0) if response is not None else 0
+
         c.accumulate(consumer=consumer, method=request.method, path=path_template, status_code=status_code,
-                     response_time_in_second=response_time, request_size=request.headers.get("Content-Length", 0),
-                     response_size=response.headers.get("Content-Length", 0) if response is not None else None)
+                     response_time_in_second=response_time, request_size=request_size, response_size=response_size)
 
         if (status_code == HTTP_422_UNPROCESSABLE_ENTITY and response is not None and
                 response.headers.get("Content-Type") == "application/json"):

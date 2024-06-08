@@ -4,11 +4,9 @@ from typing import Annotated
 from cachetools.func import ttl_cache
 from fastapi import Query
 from fastapi.routing import APIRouter
-from pydantic import BaseModel, Field
-from enum import Enum
-from src.backend.riotapi.routes._region import REGION_ANNOTATED_PATTERN, GetRiotClientByUserRegion, \
-    QueryToRiotAPI
-from src.utils.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION
+from fastapi.responses import Response
+from src.backend.riotapi.routes._query import QueryToRiotAPI
+from src.static.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION, REGION_ANNOTATED_PATTERN, CREDENTIALS
 from src.backend.riotapi.routes._endpoints import LolChallengesV1_Endpoints
 from src.backend.riotapi.models.LolChallengesV1 import ChallengeConfigInfoDto, PlayerInfoDto
 
@@ -16,13 +14,15 @@ from src.backend.riotapi.models.LolChallengesV1 import ChallengeConfigInfoDto, P
 # ==================================================================================================
 router = APIRouter()
 SRC_ROUTE: str = str(__name__).split('.')[-1]
+_CREDENTIALS = [CREDENTIALS.LOL, CREDENTIALS.FULL]
 
 # ==================================================================================================
 # Challenge Config
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/config", response_model=list[ChallengeConfigInfoDto], tags=[SRC_ROUTE])
 async def ListChallengeConfigInfoDto(
-        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+        response: Response,
+        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None
 ) -> list[ChallengeConfigInfoDto]:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfo}
@@ -35,17 +35,17 @@ async def ListChallengeConfigInfoDto(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
-                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.ChallengeConfigInfo
-    return await QueryToRiotAPI(client, endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/config/{challengeId}", response_model=ChallengeConfigInfoDto, tags=[SRC_ROUTE])
 async def GetChallengeConfigInfoDto(
         challengeId: str,
-        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+        response: Response,
+        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> ChallengeConfigInfoDto:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfoByChallengeId}
@@ -62,16 +62,16 @@ async def GetChallengeConfigInfoDto(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
-                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.ChallengeConfigInfoByChallengeId.format(challengeId=challengeId)
-    return await QueryToRiotAPI(client, endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
 
 
 @ttl_cache(maxsize=1, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/percentiles", response_model=dict[int, dict[str, float]], tags=[SRC_ROUTE])
 async def ListPercentileLevel(
-        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+        response: Response,
+        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None
 ) -> dict[int, dict[str, float]]:
     f"""
     {LolChallengesV1_Endpoints.ChallengeConfigInfo}
@@ -81,21 +81,21 @@ async def ListPercentileLevel(
     Arguments:
     ---------
 
-    - path::region (str)
+    - query::region (str)
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
-                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PercentileLevel
-    return await QueryToRiotAPI(client, endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=EXTENDED_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/challenge/percentiles/{challengeId}", response_model=dict[str, float], tags=[SRC_ROUTE])
 async def GetPercentileLevelByChallengeId(
         challengeId: str,
-        region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
+        response: Response,
+        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> dict[str, float]:
     f"""
     {LolChallengesV1_Endpoints.PercentileLevelByChallengeId}
@@ -111,16 +111,16 @@ async def GetPercentileLevelByChallengeId(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
-                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PercentileLevelByChallengeId.format(challengeId=challengeId)
-    return await QueryToRiotAPI(client, endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
 
 
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/player-data/{puuid}", response_model=PlayerInfoDto, tags=[SRC_ROUTE])
 async def GetPlayerData(
         puuid: str,
+        response: Response,
         region: Annotated[str, Query(pattern=REGION_ANNOTATED_PATTERN)]
 ) -> PlayerInfoDto:
     f"""
@@ -137,7 +137,6 @@ async def GetPlayerData(
         The region to query against as.
 
     """
-    client = GetRiotClientByUserRegion(region, src_route=str(__name__), router=router,
-                                       bypass_region_route=True)
     endpoint: str = LolChallengesV1_Endpoints.PlayerData.format(puuid=puuid)
-    return await QueryToRiotAPI(client, endpoint)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=response)

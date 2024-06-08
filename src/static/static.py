@@ -4,10 +4,9 @@ This also include a base configuration for the log system, including the default
 
 
 """
-from functools import cached_property
-
 from cachetools.func import ttl_cache
 from enum import StrEnum
+# from src.utils._env_static import *
 
 # ==================================================================================================
 # RegEx Patterns for Logging
@@ -54,8 +53,8 @@ SYNC_INTERVAL: int = 90 * SECOND  # 1.5 minutes
 INITIAL_SYNC_INTERVAL: int = 15 * SECOND  # Force to have quick data response
 INITIAL_SYNC_INTERVAL_DURATION: int = 10 * MINUTE  # 10 minutes
 
-# SQLite Monitoring
-SQLITE_DB: str = "riotapi_monitor.db"
+# SQLite Monitoring --> Used for middleware-monitoring
+SQLITE_DB: str = r"log\riotapi_monitor.db"
 SQLITE_PARAMS: dict[str, str] = {
     "timeout": "15",
     "uri": "true",
@@ -85,34 +84,11 @@ _MOUNTLIST: dict[str, str] = {
 for key, value in _MOUNTLIST.items():
     RegionRoute[key] = RegionRoute[value]
 
-
-class CredentialName(StrEnum):
-    FULL: str = "full"
-    LOL: str = "lol"
-    LOR: str = "lor"
-    TFT: str = "tft"
-    VAL: str = "val"
-
-    @staticmethod
-    @cached_property
-    def PriorityDict(self) -> dict:
-        return {
-            CredentialName.FULL: 2,
-            CredentialName.LOL: 1,
-            CredentialName.LOR: 1,
-            CredentialName.TFT: 1,
-            CredentialName.VAL: 1,
-        }
-
-    def GetPriority(self) -> int:
-        return CredentialName.PriorityDict[self]
-
-
 # ==================================================================================================
 # TTL Cache
 BASE_TTL_ENTRY: int = 128
 BASE_TTL_MULTIPLIER: int = 16
-BASE_TTL_DURATION: int = 5 * MINUTE  # 5 minutes
+BASE_TTL_DURATION: int = 5 * MINUTE  # 5 minutes: This is also used in TTL Cache along with Request as a cron
 EXTENDED_TTL_DURATION: int = HOUR # 1 hour
 LIFETIME_TTL_DURATION: int = WEEK  # 1 week
 
@@ -131,9 +107,30 @@ def GeneratePattern(source_input: str, account: str, use_values_if_region: bool 
             raise ValueError(f"Invalid source: {source_input}")
 
 REGION_ANNOTATED_PATTERN: str = GeneratePattern("REGION", "R1")
-CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C1")
-REGION_TTL_ENTRY: int = BASE_TTL_ENTRY * (REGION_ANNOTATED_PATTERN.count("|") + 1)
-CONTINENT_TTL_ENTRY: int = BASE_TTL_ENTRY * (CONTINENT_ANNOTATED_PATTERN.count("|") + 1)
+NORMAL_CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C1")
+MATCH_CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C2")
+REGION_TTL_MULTIPLIER: int = REGION_ANNOTATED_PATTERN.count("|") + 1
+CONTINENT_TTL_MULTIPLIER: int = NORMAL_CONTINENT_ANNOTATED_PATTERN.count("|") + 1
 
 # ==================================================================================================
+# Credentials
+class CREDENTIALS(StrEnum):
+    FULL: str = "full"
+    LOL: str = "lol"
+    LOR: str = "lor"
+    TFT: str = "tft"
+    VAL: str = "val"
+
+    @staticmethod
+    def PriorityDict() -> dict:
+        return {
+            CREDENTIALS.FULL: 2,
+            CREDENTIALS.LOL: 1,
+            CREDENTIALS.LOR: 1,
+            CREDENTIALS.TFT: 1,
+            CREDENTIALS.VAL: 1,
+        }
+
+    def GetPriority(self) -> int:
+        return CREDENTIALS.PriorityDict()[self]
 

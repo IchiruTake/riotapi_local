@@ -54,7 +54,7 @@ Response from {response.request.method} {response.url} with status code {respons
         else:
             logging.info(msg)
             logging.info(content)
-    except (UnicodeError, UnicodeDecodeError) as e:
+    except (UnicodeError, UnicodeDecodeError):
         pass
 
 

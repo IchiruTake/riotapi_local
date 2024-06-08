@@ -15,7 +15,7 @@ LOGGER:
         ROTATE_LOG: true
         ROTATE_EVERY_SEC: false
 
-        LOG_FORMAT: '[%(name)s-BASIC-DEBUGFILE] [%(asctime)s] [%(levelname)s] [File=%(pathname)s ; Line=%(lineno)d]: %(message)s'
+        LOG_FORMAT: '[%(name)s-DEBUG-%(process)d-%(thread)d-%(taskName)s-%(asctime)s] [File=%(module)s\%(filename)s;Line=%(lineno)d] [%(levelname)s]: %(message)s'
         ENCODING: utf-32
         DELAY: false
         ERRORS: None
@@ -25,10 +25,10 @@ LOGGER:
         ENABLED: true
         LEVEL: 10 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
         STREAM: "ext://sys.stdout"    # ext://sys.stdout or ext://sys.stderr or None
-        LOG_FORMAT: '[%(name)s-BASIC-OUTSTREAM] [%(asctime)s] %(levelname)s: %(message)s'
+        LOG_FORMAT: '[%(name)s-OUTSTREAM-%(process)d-%(thread)d-%(taskName)s-%(asctime)s] %(levelname)s: %(message)s'
 
     ERR_STREAM_HANDLER: # Recommended to not alter this setting.
         ENABLED: true
         LEVEL: 40 # 0: NOTSET, 10: DEBUG, 20: INFO, 30: WARNING, 40: ERROR, 50: CRITICAL
         STREAM: "ext://sys.stderr"    # ext://sys.stdout or ext://sys.stderr or None
-        LOG_FORMAT: '[%(name)s-BASIC-ERRSTREAM] [%(asctime)s] %(levelname)s: %(message)s'
+        LOG_FORMAT: '[%(name)s-ERRSTREAM-%(process)d-%(thread)d-%(taskName)s-%(asctime)s] %(levelname)s: %(message)s'

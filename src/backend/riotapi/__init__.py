@@ -3,7 +3,7 @@ import toml
 import yaml
 
 from src.log.log import presetDefaultLogging
-from src.utils.static import RIOTAPI_LOG_CFG_FILE, RIOTAPI_GC_CFG_FILE
+from src.static.static import RIOTAPI_LOG_CFG_FILE, RIOTAPI_GC_CFG_FILE
 
 # ==================================================================================================
 # PROGRAM INITIALIZATION

@@ -2,23 +2,23 @@ import logging
 from math import ceil
 from time import perf_counter
 from typing import Callable, Any
-from src.utils.static import MINUTE, YEAR
+from src.static.static import MINUTE, YEAR
 from datetime import datetime
 from starlette.types import ASGIApp
 from starlette.types import Scope as StarletteScope
 from starlette.exceptions import HTTPException
-from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_403_FORBIDDEN
+from starlette.status import HTTP_429_TOO_MANY_REQUESTS, HTTP_403_FORBIDDEN
 from asgiref.typing import Scope as ASGI3Scope
 from starlette.types import Send, Receive, Message
-from asgiref.typing import ASGI3Application, ASGIReceiveCallable, ASGISendCallable, ASGISendEvent, ASGIReceiveEvent
+from asgiref.typing import ASGI3Application, ASGIReceiveCallable, ASGISendCallable, ASGISendEvent
 from starlette.datastructures import MutableHeaders
 
 # ==============================================================================
 # Rate Limiting
 class BaseMiddleware:
     def __init__(self, application: ASGIApp | ASGI3Application, accept_scope: str | list[str] | None = "http"):
-        self.app: ASGIApp | ASGI3Application = application
-        accept_scope = list(set(accept_scope))
+        self._app: ASGIApp | ASGI3Application = application
+        accept_scope = list(set(accept_scope)) if isinstance(accept_scope, list) else accept_scope
         _accept = ["http", "websocket", "lifespan"]
         msg: str = f"Invalid scope: {accept_scope}. Must be one or part of {', '.join(_accept)}, or None."
         if isinstance(accept_scope, str):
@@ -54,7 +54,7 @@ class BaseMiddleware:
 class RateLimitMiddleware(BaseMiddleware):
     def __init__(self, app: ASGIApp | ASGI3Application, max_requests: int, interval_by_second: int = MINUTE,
                  time_operator: Callable[[], int | float] = perf_counter, accept_scope: str | list[str] = "http"):
-        super().__init__(app, accept_scope=accept_scope)
+        super(RateLimitMiddleware, self).__init__(app, accept_scope=accept_scope)
         self.max_requests: int = max_requests
         self.interval_by_second: int = interval_by_second
         self._operator: Callable = time_operator
@@ -64,7 +64,7 @@ class RateLimitMiddleware(BaseMiddleware):
     async def __call__(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
                        send: ASGISendCallable | Send) -> None:
         if not (await super()._precheck(scope, receive, send)):
-            await self.app(scope, receive, send)
+            await self._app(scope, receive, send)
             return None
 
         # Check how many requests has been processed
@@ -83,21 +83,21 @@ class RateLimitMiddleware(BaseMiddleware):
             raise HTTPException(status_code=HTTP_429_TOO_MANY_REQUESTS, detail=message)
 
         # OK to process the request
-        await self.app(scope, receive, send)
+        await self._app(scope, receive, send)
 
 
 # ==============================================================================
 # Expiry Date
 class ExpiryDateMiddleware(BaseMiddleware):
-    def __init__(self, application: ASGIApp | ASGI3Application, deadline: datetime | Callable[[], datetime],
+    def __init__(self, app: ASGIApp | ASGI3Application, deadline: datetime | Callable[[], datetime],
                  accept_scope: str | list[str] = "http"):
-        super().__init__(application, accept_scope=accept_scope)
+        super(ExpiryDateMiddleware, self).__init__(app, accept_scope=accept_scope)
         self._deadline: datetime | Callable[[], datetime] = deadline
 
     async def __call__(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
                        send: ASGISendCallable | Send) -> None:
         if not (await super()._precheck(scope, receive, send)):
-            await self.app(scope, receive, send)
+            await self._app(scope, receive, send)
             return None
 
         # Check if our application would be expired to stop all traffic
@@ -105,13 +105,13 @@ class ExpiryDateMiddleware(BaseMiddleware):
         if datetime.now(tz=deadline.tzinfo) > deadline:
             raise HTTPException(status_code=HTTP_403_FORBIDDEN,
                                 detail="Token expired or constraint setup by the programmer.")
-        await self.app(scope, receive, send)
+        await self._app(scope, receive, send)
 
 # ==============================================================================
 # Header Hardening
 class HeaderHardeningMiddleware(BaseMiddleware):
-    def __init__(self, application: ASGIApp | ASGI3Application, accept_scope: str | list[str] = "http"):
-        super().__init__(application, accept_scope=accept_scope)
+    def __init__(self, app: ASGIApp | ASGI3Application, accept_scope: str | list[str] = "http"):
+        super(HeaderHardeningMiddleware, self).__init__(app, accept_scope=accept_scope)
         # Offload the headers
         # https://scotthelme.co.uk/hardening-your-http-response-headers
         # https://faun.pub/hardening-the-http-security-headers-with-aws-lambda-edge-and-cloudfront-2e2da1ae4d83
@@ -134,12 +134,15 @@ class HeaderHardeningMiddleware(BaseMiddleware):
             "Feature-Policy": "geolocation none; midi none; notifications none; push none; sync-xhr none; "
                               "microphone none; camera none; magnetometer none; gyroscope none; speaker self; "
                               "vibrate none; fullscreen self; payment none;",
+            "Access-Control-Expose-Headers": ','.join(["X-Request-Timestamp", "X-Response-Timestamp",
+                                                       "X-Response-DurationInMilliseconds", "Content-Length",
+                                                       "Content-Type", "Transfer-Encoding", "Content-Encoding",]),
         }
 
     async def __call__(self, scope: StarletteScope | ASGI3Scope, receive: ASGIReceiveCallable | Receive,
                        send: ASGISendCallable | Send) -> None:
         if not (await super()._precheck(scope, receive, send)):
-            await self.app(scope, receive, send)
+            await self._app(scope, receive, send)
             return None
 
         # Add the headers
@@ -150,4 +153,5 @@ class HeaderHardeningMiddleware(BaseMiddleware):
                     headers.append(key, value)
             await send(message)
 
-        await self.app(scope, receive, _send_with_headers)
+        await self._app(scope, receive, _send_with_headers)
+
