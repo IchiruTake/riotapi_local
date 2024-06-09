@@ -9,7 +9,7 @@ from typing import Annotated
 
 from cachetools.func import ttl_cache
 from fastapi import Query
-from fastapi.routing import APIRouter
+from src.backend.riotapi.inapp import CustomAPIRouter
 from fastapi.responses import Response
 
 from src.backend.riotapi.routes._query import QueryToRiotAPI
@@ -18,9 +18,16 @@ from src.backend.riotapi.routes._endpoints import ClashV1_Endpoints
 from src.backend.riotapi.models.ClashV1 import PlayerDto, TeamDto, TournamentDto
 
 # ==================================================================================================
-router = APIRouter()
-SRC_ROUTE: str = str(__name__).split('.')[-1]
 _CREDENTIALS = [CREDENTIALS.LOL, CREDENTIALS.FULL]
+router = CustomAPIRouter()
+SRC_ROUTE: str = str(__name__).split('.')[-1]
+router.load_profile(name=f"riotapi.routers.{SRC_ROUTE}")
+
+
+# ==================================================================================================
+# Enable Server Caching
+MAXSIZE1, TTL1 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=1)
+MAXSIZE2, TTL2 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=2)
 
 
 # ==================================================================================================

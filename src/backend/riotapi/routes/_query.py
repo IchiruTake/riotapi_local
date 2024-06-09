@@ -14,7 +14,7 @@ from src.backend.riotapi.inapp import DefaultSettings
 from src.static.static import (CREDENTIALS, REGION_ANNOTATED_PATTERN, MATCH_CONTINENT_ANNOTATED_PATTERN,
                                NORMAL_CONTINENT_ANNOTATED_PATTERN)
 from enum import StrEnum
-from src.backend.riotapi.routes.CustomAPIRouter import CustomAPIRouter
+from src.backend.riotapi.inapp import CustomAPIRouter
 
 
 # ==================================================================================================
@@ -113,6 +113,21 @@ def _GetRiotClientByUserRegion(host: str, credential_name: str, router: CustomAP
     timeout: dict = router.inapp_default.timeout
     return HttpxAsyncClient.GetRiotClient(region=host, credential_name=credential_name, auth=auth, timeout=timeout)
 
+def PassToStarletteResponse(response: HttpxResponse, user_response: StarletteResponse) -> None:
+    try:
+        user_response.status_code = response.status_code
+        user_response.headers.update(response.headers)
+        user_response.charset = response.encoding
+        media_type: str | None = (response.headers.get('Content-Type', None) or
+                                  response.headers.get('content-type', None))
+        if not media_type:
+            media_type = media_type.split(';')[0]
+        user_response.media_type = media_type
+
+    except Exception as e:
+        logging.warning(f"Error on updating the user's response: {e}")
+    return None
+
 
 async def _QueryToRiotAPI(client: AsyncClient, endpoint: str, method: str = "GET", params: dict | None = None,
                           headers: dict | None = None, cookies: dict | None = None,
@@ -137,36 +152,24 @@ async def _QueryToRiotAPI(client: AsyncClient, endpoint: str, method: str = "GET
 
     response.raise_for_status()
     if usr_response is not None:
-        try:
-            usr_response.status_code = response.status_code
-            usr_response.headers.update(response.headers)
-            usr_response.charset = response.encoding
-            media_type: str | None = (response.headers.get('Content-Type', None) or
-                                      response.headers.get('content-type', None))
-            if not media_type:
-                media_type = media_type.split(';')[0]
-            usr_response.media_type = media_type
-
-        except Exception as e:
-            logging.warning(f"Error on updating the user's response: {e}")
+        PassToStarletteResponse(response, usr_response)
 
     return response  # response.json()
 
 
 async def QueryToRiotAPI(host: str | None, credentials: CREDENTIALS | list[CREDENTIALS], endpoint: str,
                          router: CustomAPIRouter | APIRouter | FastAPI | ASGIApp, method: str = "GET",
-                         override_credential: bool = False,
-                         params: dict | None = None, headers: dict | None = None, cookies: dict | None = None,
-                         usr_response: StarletteResponse = None, host_pattern: str | None = None) -> object | Any:
+                         override_credential: bool = False, params: dict | None = None, headers: dict | None = None,
+                         cookies: dict | None = None, host_pattern: str | None = None) -> HttpxResponse | Any:
     credentials = _PatchCredential(credentials, path_endpoint=endpoint, override_credential=override_credential)
     errors: list[dict] = []
     for cred in credentials:
         client: AsyncClient = _GetRiotClientByUserRegion(host, cred, router, host_pattern=host_pattern)
         response: HttpxResponse = await _QueryToRiotAPI(client, endpoint, method=method, params=params, headers=headers,
-                                                        cookies=cookies, usr_response=usr_response)
+                                                        cookies=cookies, usr_response=None)
         status_code: int = response.status_code
         if status_code // 100 == 2:
-            return response.json()
+            return response
         if status_code // 100 == 1:     # DEBUG HTTP_STATUS_CODE
             continue
         if status_code // 100 != 3:     # REDIRECT HTTP_STATUS_CODE

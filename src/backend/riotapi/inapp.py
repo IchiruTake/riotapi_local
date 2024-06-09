@@ -1,8 +1,13 @@
-from typing import Annotated, Callable
+from pprint import pformat
+from typing import Callable
+
+import toml
+import logging
 from pydantic import BaseModel, Field
-from fastapi import Path, Query
-from src.static.static import (REGION_ANNOTATED_PATTERN, NORMAL_CONTINENT_ANNOTATED_PATTERN,
-                               MATCH_CONTINENT_ANNOTATED_PATTERN)
+from src.static.static import (REGION_ANNOTATED_PATTERN, NORMAL_CONTINENT_ANNOTATED_PATTERN, RIOTAPI_ENV_CFG_FILE,
+                               MATCH_CONTINENT_ANNOTATED_PATTERN, REGION_TTL_MULTIPLIER, CONTINENT_TTL_MULTIPLIER)
+from fastapi.routing import APIRouter
+from httpx import Response as HttpxResponse
 
 
 class DefaultSettings(BaseModel):
@@ -21,3 +26,44 @@ class DefaultSettings(BaseModel):
 
     def GetAuthOfKeyName(self, key_name: str) -> dict | None:
         return self.auth.get(key_name, None)
+
+
+class CustomAPIRouter(APIRouter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.inapp_default: DefaultSettings | None = None
+        self.entry_scale: bool = True
+        self.entry_exponential_scale: bool = False
+        self.duration_scale: bool = False
+        self.duration_exponential_scale: bool = False
+
+    def load_profile(self, name: str, toml_file: str = RIOTAPI_ENV_CFG_FILE, ) -> None:
+        with open(toml_file, "r") as toml_stream:
+            profile = toml.load(toml_stream).get("riotapi", {}).get("routers", {}).get(name, {})
+            for key in name.split('.'):
+                profile = profile.get(key, {})
+                if not profile:
+                    logging.warning(f"The wanted profile as requested ({name}) is not found in the TOML file.")
+                    return
+            logging.info(f"Loading profile {name} successfully: {pformat(profile)}")
+            self.entry_scale = profile.get("ENTRY_SCALE", self.entry_scale)
+            self.entry_exponential_scale = profile.get("ENTRY_EXP_SCALE", self.entry_exponential_scale)
+            self.duration_scale = profile.get("DURATION_SCALE", self.duration_scale)
+            self.duration_exponential_scale = profile.get("DURATION_EXP_SCALE", self.duration_exponential_scale)
+
+    @staticmethod
+    def _scale(unit: int, region_path: bool, num_params: int = 1, scale_mode: bool = False,
+               exponential_mode: bool = False) -> int:
+        if not scale_mode:
+            return unit
+
+        multiplier: int = REGION_TTL_MULTIPLIER if region_path else CONTINENT_TTL_MULTIPLIER
+        if not exponential_mode:
+            return unit * multiplier
+
+        return unit * (multiplier ** num_params)
+
+    def scale(self, maxsize: int, ttl: int, region_path: bool, num_params: int = 1) -> tuple[int, int]:
+        maxsize = self._scale(maxsize, region_path, num_params, self.entry_scale, self.entry_exponential_scale)
+        ttl = self._scale(ttl, region_path, num_params, self.duration_scale, self.duration_exponential_scale)
+        return maxsize, ttl

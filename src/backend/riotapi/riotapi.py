@@ -23,7 +23,7 @@ from src.backend.riotapi.middlewares.LocalMiddleware import (ExpiryDateMiddlewar
 # from src.backend.riotapi.routes.ChampionV3 import router as ChampionV3_router
 # from src.backend.riotapi.routes.MatchV5 import router as MatchV5_router
 # from src.backend.riotapi.routes.ChampionMasteryV4 import router as ChampionMasteryV4_router
-from src.backend.riotapi.inapp import DefaultSettings
+from src.backend.riotapi.inapp import DefaultSettings, CustomAPIRouter
 from src.log.timezone import GetProgramTimezone, GetProgramTimezoneName
 from src.static.static import (DAY, RIOTAPI_ENV_CFG_FILE, BASE_TTL_ENTRY, BASE_TTL_DURATION, EXTENDED_TTL_DURATION,
                                REFRESH_RATE_IF_NOT_FOUND, MIN_REFRESH_RATE_IF_FOUND, RIOTAPI_SECRETS_CFG_FILE)
@@ -75,8 +75,8 @@ def ReloadAuthenticationForRouter(application: FastAPI) -> int:
             application.inapp_default = default
             if hasattr(application, "lst_routers"):
                 logging.debug("Reloading the authentication for the routers also ...")
-                lst_routers = application.lst_routers
-                for rt in lst_routers:
+                for rt in application.lst_routers:
+                    assert isinstance(rt, CustomAPIRouter)
                     rt.inapp_default = default
 
         # Return the refresh rate for next reload
@@ -212,7 +212,7 @@ logging.info("The middlewares have been added to the application ...")
 
 # ==================================================================================================
 logging.info("Including the routers in the application ...")
-APIROUTER_MAPPING: dict[str, APIRouter] = {
+APIROUTER_MAPPING: dict[str, CustomAPIRouter] = {
     # "/Account/v1": AccountV1_router,
     # "/LolChallenges/v1": LolChallengesV1_router,
     # "/Match/v5": MatchV5_router,
