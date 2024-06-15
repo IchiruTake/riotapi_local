@@ -34,4 +34,16 @@ class ClashV1_Endpoints:
     GetTournamentByTeamId: str = "/lol/clash/v1/tournaments/by-team/{teamId}"
     GetTournamentByTournamentId: str = "/lol/clash/v1/tournaments/{tournamentId}"
 
+class LeagueExpV4_Endpoints:
+    GetLeagueEntries: str = '/lol/league-exp/v4/entries/{queue}/{tier}/{division}'
 
+class LeagueV4_Endpoints:
+    GetChallengerLeague: str = '/lol/league/v4/challengerleagues/by-queue/{queue}'
+    GetGrandmasterLeague: str = '/lol/league/v4/grandmasterleagues/by-queue/{queue}'
+    GetMasterLeague: str = '/lol/league/v4/masterleagues/by-queue/{queue}'
+
+    GetLeagueEntriesBySummonerID: str = '/lol/league/v4/entries/by-summoner/{encryptedSummonerId}'
+    GetLeagueEntries: str = '/lol/league/v4/entries/{queue}/{tier}/{division}'
+
+    # Consistently looking up league ids that don't exist will result in a blacklist.
+    GetLeagueEntriesByLeagueID: str = '/lol/league/v4/leagues/{leagueId}'

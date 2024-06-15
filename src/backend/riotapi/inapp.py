@@ -1,4 +1,5 @@
 from pprint import pformat
+from typing import Callable
 
 import toml
 import logging
@@ -7,6 +8,7 @@ from src.static.static import (REGION_ANNOTATED_PATTERN, NORMAL_CONTINENT_ANNOTA
                                MATCH_CONTINENT_ANNOTATED_PATTERN, REGION_TTL_MULTIPLIER, CONTINENT_TTL_MULTIPLIER)
 from fastapi.routing import APIRouter
 from functools import lru_cache
+from threading import Lock
 
 
 class DefaultSettings(BaseModel):
@@ -31,12 +33,18 @@ class CustomAPIRouter(APIRouter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.inapp_default: DefaultSettings | None = None
+        self._name: str | None = None
         self.entry_scale: bool = True
         self.entry_exponential_scale: bool = False
         self.duration_scale: bool = False
         self.duration_exponential_scale: bool = False
+        self._cached_methods: dict[str, Callable] = {}
+
+    def get_name(self) -> str | None:
+        return self._name
 
     def load_profile(self, name: str, toml_file: str = RIOTAPI_ENV_CFG_FILE, ) -> None:
+        self._name = name
         with open(toml_file, "r") as toml_stream:
             profile = toml.load(toml_stream).get("riotapi", {}).get("routers", {}).get(name, {})
             for key in name.split('.'):
@@ -67,3 +75,20 @@ class CustomAPIRouter(APIRouter):
         maxsize = self._scale(maxsize, region_path, num_params, self.entry_scale, self.entry_exponential_scale)
         ttl = self._scale(ttl, region_path, num_params, self.duration_scale, self.duration_exponential_scale)
         return maxsize, ttl
+
+    # ==================================================================================================
+    def add_method(self, method_name: str, method: Callable) -> None:
+        assert isinstance(method_name, str), "The method name must be a string."
+        assert callable(method), "The method must be a callable object."
+        assert hasattr(method, "cache"), "The method must have a cache attribute."
+        if method_name in self._cached_methods:
+            raise ValueError(f"The method name {method_name} is already in the cache.")
+        self._cached_methods[method_name] = method
+
+    def free_cache(self) -> None:
+        with Lock():
+            for method_name, method in self._cached_methods.items():
+                if hasattr(method, "cache_clear") and callable(method.cache_clear):
+                    method.cache_clear()
+        return None
+
