@@ -28,21 +28,8 @@ router.load_profile(name=f"riotapi.routers.{SRC_ROUTE}")
 MAXSIZE1, TTL1 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=1)
 MAXSIZE2, TTL2 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=2)
 
-def _ProcessChampionMastery(func: Callable):
-    def wrapper(*args, **kwargs) -> list[ChampionMasteryDto] | ChampionMasteryDto:
-        output: list[ChampionMasteryDto] | ChampionMasteryDto = func(*args, **kwargs)
-        if isinstance(output, ChampionMasteryDto):
-            output.lastPlayTime = output.lastPlayTime // 1000
-        elif isinstance(output, Sequence):
-            for mastery in output:
-                mastery.lastPlayTime = mastery.lastPlayTime // 1000
-            if isinstance(output, list):
-                output.sort(key=lambda x: x.championPoints, reverse=True)
-        return output
 
-    return wrapper
-
-@ttl_cache(maxsize=MAXSIZE1, ttl=TTL1, timer=perf_counter, typed=True)
+@ttl_cache(maxsize=MAXSIZE2, ttl=TTL2, timer=perf_counter, typed=True)
 async def _ListChampionMastery(puuid: str, region: str | None, pattern: str) \
         -> tuple[HttpxResponse, list[ChampionMasteryDto]]:
     path_endpoint: str = ChampionMasteryV4_Endpoints.MasteryByPuuid.format(puuid=puuid)
@@ -73,7 +60,6 @@ async def _GetChampionMasteryScore(puuid: str, region: str | None, pattern: str)
                                 host_pattern=pattern)
 
 
-
 # ==================================================================================================
 @router.get("/{puuid}", response_model=list[ChampionMasteryDto], tags=[SRC_ROUTE])
 async def ListChampionMastery(
@@ -100,7 +86,6 @@ async def ListChampionMastery(
     return output
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY * BASE_TTL_MULTIPLIER, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/{puuid}/{championId}", response_model=ChampionMasteryDto, tags=[SRC_ROUTE])
 async def GetChampionMastery(
         response: Response,
@@ -133,8 +118,6 @@ async def GetChampionMastery(
     raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Champion Mastery is not found")
 
 
-@_ProcessChampionMastery
-@ttl_cache(maxsize=BASE_TTL_ENTRY * BASE_TTL_MULTIPLIER, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/{puuid}/top/{count}", response_model=list[ChampionMasteryDto], tags=[SRC_ROUTE])
 async def ListTopChampionMastery(
         response: Response,
@@ -155,7 +138,7 @@ async def ListTopChampionMastery(
     - path::count (int)
         The number of entries to retrieve.
 
-    - path::region (str)
+    - query::region (str)
         The region of the player.
 
     """
@@ -164,12 +147,11 @@ async def ListTopChampionMastery(
     return champion_masteries[:min(count, len(champion_masteries))]
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/{puuid}/score", response_model=int, tags=[SRC_ROUTE])
 async def GetChampionMasteryScore(
         puuid: str,
         response: Response,
-        region: Annotated[str | None, Path(pattern=REGION_ANNOTATED_PATTERN)] = None,
+        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> int:
     f"""
     {ChampionMasteryV4_Endpoints.MasteryScoreByPuuid}
@@ -181,7 +163,7 @@ async def GetChampionMasteryScore(
     - path::puuid (str)
         The puuid of the player.
 
-    - path::region (str)
+    - query::region (str)
         The region of the player.
 
     """

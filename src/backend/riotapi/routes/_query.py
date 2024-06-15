@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException, FastAPI
 from httpx import AsyncClient

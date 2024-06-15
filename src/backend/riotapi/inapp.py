@@ -1,5 +1,4 @@
 from pprint import pformat
-from typing import Callable
 
 import toml
 import logging
@@ -7,7 +6,7 @@ from pydantic import BaseModel, Field
 from src.static.static import (REGION_ANNOTATED_PATTERN, NORMAL_CONTINENT_ANNOTATED_PATTERN, RIOTAPI_ENV_CFG_FILE,
                                MATCH_CONTINENT_ANNOTATED_PATTERN, REGION_TTL_MULTIPLIER, CONTINENT_TTL_MULTIPLIER)
 from fastapi.routing import APIRouter
-from httpx import Response as HttpxResponse
+from functools import lru_cache
 
 
 class DefaultSettings(BaseModel):
@@ -57,12 +56,13 @@ class CustomAPIRouter(APIRouter):
         if not scale_mode:
             return unit
 
-        multiplier: int = REGION_TTL_MULTIPLIER if region_path else CONTINENT_TTL_MULTIPLIER
+        multiplier: int = max(1, REGION_TTL_MULTIPLIER if region_path else CONTINENT_TTL_MULTIPLIER)
         if not exponential_mode:
             return unit * multiplier
 
         return unit * (multiplier ** num_params)
 
+    @lru_cache(maxsize=1024, typed=True)
     def scale(self, maxsize: int, ttl: int, region_path: bool, num_params: int = 1) -> tuple[int, int]:
         maxsize = self._scale(maxsize, region_path, num_params, self.entry_scale, self.entry_exponential_scale)
         ttl = self._scale(ttl, region_path, num_params, self.duration_scale, self.duration_exponential_scale)

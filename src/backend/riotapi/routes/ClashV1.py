@@ -11,32 +11,75 @@ from cachetools.func import ttl_cache
 from fastapi import Query
 from src.backend.riotapi.inapp import CustomAPIRouter
 from fastapi.responses import Response
+from httpx import Response as HttpxResponse
 
-from src.backend.riotapi.routes._query import QueryToRiotAPI
-from src.static.static import BASE_TTL_ENTRY, BASE_TTL_DURATION, CREDENTIALS, REGION_ANNOTATED_PATTERN
+from src.backend.riotapi.routes._query import QueryToRiotAPI, PassToStarletteResponse
+from src.static.static import (
+    BASE_TTL_ENTRY,
+    BASE_TTL_DURATION,
+    CREDENTIALS,
+    REGION_ANNOTATED_PATTERN,
+)
 from src.backend.riotapi.routes._endpoints import ClashV1_Endpoints
 from src.backend.riotapi.models.ClashV1 import PlayerDto, TeamDto, TournamentDto
 
 # ==================================================================================================
 _CREDENTIALS = [CREDENTIALS.LOL, CREDENTIALS.FULL]
 router = CustomAPIRouter()
-SRC_ROUTE: str = str(__name__).split('.')[-1]
+SRC_ROUTE: str = str(__name__).split(".")[-1]
 router.load_profile(name=f"riotapi.routers.{SRC_ROUTE}")
 
 
 # ==================================================================================================
 # Enable Server Caching
-MAXSIZE1, TTL1 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=1)
-MAXSIZE2, TTL2 = router.scale(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=2)
+MAXSIZE1, TTL1 = router.scale(
+    maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=1
+)
+MAXSIZE2, TTL2 = router.scale(
+    maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, region_path=False, num_params=2
+)
+
+
+@ttl_cache(maxsize=MAXSIZE1, ttl=TTL1, timer=perf_counter, typed=True)
+async def _GetPlayerBySummonerId(summonerId: str, region: str | None, pattern: str) -> HttpxResponse:
+    path_endpoint: str = ClashV1_Endpoints.GetBySummonerId.format(summonerId=summonerId)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=path_endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=None,
+                                host_pattern=pattern)
+
+
+@ttl_cache(maxsize=MAXSIZE1, ttl=TTL1, timer=perf_counter, typed=True)
+async def _GetTeamById(teamId: str, region: str | None, pattern: str) -> HttpxResponse:
+    path_endpoint: str = ClashV1_Endpoints.GetByTeamId.format(teamId=teamId)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=path_endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=None,
+                                host_pattern=pattern)
+
+
+@ttl_cache(maxsize=MAXSIZE1, ttl=TTL1, timer=perf_counter, typed=True)
+async def _GetTournaments(region: str | None, pattern: str) -> HttpxResponse:
+    path_endpoint: str = ClashV1_Endpoints.GetTournaments
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=path_endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=None,
+                                host_pattern=pattern)
+
+
+@ttl_cache(maxsize=MAXSIZE1, ttl=TTL1, timer=perf_counter, typed=True)
+async def _GetTournamentByTeamId(
+    teamId: str, region: str | None, pattern: str
+) -> HttpxResponse:
+    path_endpoint: str = ClashV1_Endpoints.GetTournamentByTeamId.format(teamId=teamId)
+    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=path_endpoint, router=router,
+                                method="GET", params=None, headers=None, cookies=None, usr_response=None,
+                                host_pattern=pattern)
 
 
 # ==================================================================================================
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-summoner/{summonerId}", response_model=PlayerDto, tags=[SRC_ROUTE])
 async def GetPlayerBySummonerId(
-        response: Response,
-        summonerId: str,
-        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
+    response: Response,
+    summonerId: str,
+    region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> PlayerDto:
     f"""
     {ClashV1_Endpoints.GetBySummonerId}
@@ -52,17 +95,16 @@ async def GetPlayerBySummonerId(
         The region where the player is located.
     
     """
-    endpoint: str = ClashV1_Endpoints.GetBySummonerId.format(summonerId=summonerId)
-    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
-                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
+    httpx_response = await _GetPlayerBySummonerId(summonerId=summonerId, region=region, pattern=REGION_ANNOTATED_PATTERN)
+    PassToStarletteResponse(httpx_response, response)
+    return httpx_response.json()
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/teams/{teamId}", response_model=TeamDto, tags=[SRC_ROUTE])
 async def GetTeamById(
-        response: Response,
-        teamId: str,
-        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
+    response: Response,
+    teamId: str,
+    region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> TeamDto:
     f"""
     {ClashV1_Endpoints.GetByTeamId}
@@ -78,16 +120,15 @@ async def GetTeamById(
         The region where the player is located.
 
     """
-    endpoint: str = ClashV1_Endpoints.GetByTeamId.format(teamId=teamId)
-    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
-                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
+    httpx_response = await _GetTeamById(teamId=teamId, region=region, pattern=REGION_ANNOTATED_PATTERN)
+    PassToStarletteResponse(httpx_response, response)
+    return httpx_response.json()
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/", response_model=TournamentDto, tags=[SRC_ROUTE])
 async def GetTournaments(
-        response: Response,
-        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
+    response: Response,
+    region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> TournamentDto:
     f"""
     {ClashV1_Endpoints.GetTournaments}
@@ -100,17 +141,16 @@ async def GetTournaments(
         The region where the player is located.
 
     """
-    endpoint: str = ClashV1_Endpoints.GetTournaments
-    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
-                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
+    httpx_response = await _GetTournaments(region=region, pattern=REGION_ANNOTATED_PATTERN)
+    PassToStarletteResponse(httpx_response, response)
+    return httpx_response.json()
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/by-team/{teamId}", response_model=TournamentDto, tags=[SRC_ROUTE])
 async def GetTournamentByTeamId(
-        response: Response,
-        teamId: str,
-        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
+    response: Response,
+    teamId: str,
+    region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> TournamentDto:
     f"""
     {ClashV1_Endpoints.GetTournamentByTeamId}
@@ -126,17 +166,16 @@ async def GetTournamentByTeamId(
         The region where the player is located.
 
     """
-    endpoint: str = ClashV1_Endpoints.GetTournamentByTeamId.format(teamId=teamId)
-    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
-                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
+    httpx_response = await _GetTournamentByTeamId(teamId=teamId, region=region, pattern=REGION_ANNOTATED_PATTERN)
+    PassToStarletteResponse(httpx_response, response)
+    return httpx_response.json()
 
 
-@ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/{tournamentId}", response_model=TournamentDto, tags=[SRC_ROUTE])
 async def GetTournamentById(
-        response: Response,
-        tournamentId: str,
-        region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
+    response: Response,
+    tournamentId: str,
+    region: Annotated[str | None, Query(pattern=REGION_ANNOTATED_PATTERN)] = None,
 ) -> TournamentDto:
     f"""
     {ClashV1_Endpoints.GetTournamentByTeamId}
@@ -152,6 +191,6 @@ async def GetTournamentById(
         The region where the player is located.
 
     """
-    endpoint: str = ClashV1_Endpoints.GetTournamentByTournamentId.format(tournamentId=tournamentId)
-    return await QueryToRiotAPI(host=region, credentials=_CREDENTIALS, endpoint=endpoint, router=router,
-                                method="GET", params=None, headers=None, cookies=None, usr_response=response)
+    httpx_response = await _GetTournamentByTeamId(teamId=tournamentId, region=region, pattern=REGION_ANNOTATED_PATTERN)
+    PassToStarletteResponse(httpx_response, response)
+    return httpx_response.json()

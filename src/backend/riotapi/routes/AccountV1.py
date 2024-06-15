@@ -71,7 +71,7 @@ async def GetAccountByRiotId(
         The continent of the player.
 
     """
-    httpx_response: HttpxResponse = await _GetAccountByRiotId(username=username, tagLine=tagLine, continent=continent,
+    httpx_response = await _GetAccountByRiotId(username=username, tagLine=tagLine, continent=continent,
                                                               pattern=NORMAL_CONTINENT_ANNOTATED_PATTERN)
     PassToStarletteResponse(httpx_response, response)
     return httpx_response.json()
@@ -97,7 +97,7 @@ async def GetAccountByPuuid(
         The continent of the player.
 
     """
-    httpx_response: HttpxResponse = await _GetAccountByPuuid(puuid=puuid, continent=continent,
+    httpx_response = await _GetAccountByPuuid(puuid=puuid, continent=continent,
                                                              pattern=NORMAL_CONTINENT_ANNOTATED_PATTERN)
     PassToStarletteResponse(httpx_response, response)
     return httpx_response.json()
@@ -128,7 +128,7 @@ async def GetActiveShardForPlayer(
         The continent of the player.
 
     """
-    httpx_response: HttpxResponse = await _GetActiveShardForPlayer(game=game, puuid=puuid, continent=continent,
+    httpx_response = await _GetActiveShardForPlayer(game=game, puuid=puuid, continent=continent,
                                                                    pattern=NORMAL_CONTINENT_ANNOTATED_PATTERN)
     PassToStarletteResponse(httpx_response, response)
     return httpx_response.json()

@@ -31,7 +31,6 @@ async def _GetChampionRotation(region: str | None, pattern: str) -> HttpxRespons
                                 host_pattern=pattern)
 
 
-
 # ==================================================================================================
 @ttl_cache(maxsize=BASE_TTL_ENTRY, ttl=BASE_TTL_DURATION, timer=perf_counter, typed=True)
 @router.get("/", response_model=ChampionInfo, tags=[SRC_ROUTE])
