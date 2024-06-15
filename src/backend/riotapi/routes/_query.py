@@ -12,7 +12,7 @@ from starlette.responses import Response as StarletteResponse
 from src.backend.riotapi.client import HttpxAsyncClient
 from src.backend.riotapi.inapp import DefaultSettings
 from src.static.static import (CREDENTIALS, REGION_ANNOTATED_PATTERN, MATCH_CONTINENT_ANNOTATED_PATTERN,
-                               NORMAL_CONTINENT_ANNOTATED_PATTERN)
+                               NORMAL_CONTINENT_ANNOTATED_PATTERN, LOR_CONTINENT_ANNOTATED_PATTERN)
 from enum import StrEnum
 from src.backend.riotapi.inapp import CustomAPIRouter
 
@@ -22,6 +22,7 @@ class _Pattern(StrEnum):
     REGION = REGION_ANNOTATED_PATTERN
     NORMAL_CONTINENT = NORMAL_CONTINENT_ANNOTATED_PATTERN
     MATCH_CONTINENT = MATCH_CONTINENT_ANNOTATED_PATTERN
+    LOR_CONTINENT = LOR_CONTINENT_ANNOTATED_PATTERN
 
 def _PatchCredential(credentials: CREDENTIALS | list[CREDENTIALS], endpoint: str | None,
                      override: bool = False) -> list[CREDENTIALS]:
@@ -104,6 +105,8 @@ def _GetRiotClientByUserRegion(host: str, credential_name: str, router: CustomAP
                 host = router.inapp_default.continent
             case _Pattern.MATCH_CONTINENT:
                 host = router.inapp_default.match_continent
+            case _Pattern.LOR_CONTINENT:
+                host = router.inapp_default.continent
             case _:
                 msg: str = "Invalid host pattern provided"
                 logging.critical(msg)

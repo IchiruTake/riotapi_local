@@ -47,3 +47,7 @@ class LeagueV4_Endpoints:
 
     # Consistently looking up league ids that don't exist will result in a blacklist.
     GetLeagueEntriesByLeagueID: str = '/lol/league/v4/leagues/{leagueId}'
+
+class LolStatusV4_Endpoints:
+    GetPlatformData: str = '/lol/status/v4/platform-data'
+

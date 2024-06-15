@@ -18,6 +18,8 @@ class DefaultSettings(BaseModel):
                            pattern=NORMAL_CONTINENT_ANNOTATED_PATTERN)
     match_continent: str = Field("SEA", title="Match Continent", alias="MATCH_CONTINENT",
                                  pattern=MATCH_CONTINENT_ANNOTATED_PATTERN)
+    lor_continent: str = Field("SEA", title="Legends of Runeterra Continent", alias="LOR_CONTINENT",
+                                 pattern=MATCH_CONTINENT_ANNOTATED_PATTERN)
     locale: str = Field("en_US", title="Locale", alias="LOCALE",
                         description="The default locale")
     timeout: dict = Field(default_factory=dict, title="Timeout", alias="TIMEOUT",

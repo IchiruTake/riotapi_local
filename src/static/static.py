@@ -67,7 +67,8 @@ MAX_FAILED_TRANSACTION: int = 3
 # ==================================================================================================
 ContinentRoute: dict[str, list[str]] = {
     "C1": ["AMERICAS", "EUROPE", "ASIA", "ESPORTS"],
-    "C2": ["AMERICAS", "EUROPE", "ASIA", "SEA"]
+    "C2": ["AMERICAS", "EUROPE", "ASIA", "SEA"],
+    "C3": ["AMERICAS", "EUROPE", "SEA"],
 }
 RegionRoute: dict[str, dict[str, str]] = {
     "R1": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA", "LA1": "AMERICAS",
@@ -75,7 +76,9 @@ RegionRoute: dict[str, dict[str, str]] = {
            "TH2": "ASIA", "TR1": "EUROPE", "TW2": "ASIA", "VN2": "ASIA"},
     "R2": {"BR1": "AMERICAS", "EUN1": "EUROPE", "EUW1": "EUROPE", "JP1": "ASIA", "KR": "ASIA", "LA1": "AMERICAS",
            "LA2": "AMERICAS", "NA1": "AMERICAS", "OC1": "SEA", "PH2": "SEA", "RU": "EUROPE", "SG2": "SEA",
-           "TH2": "SEA", "TR1": "EUROPE", "TW2": "SEA", "VN2": "SEA"}
+           "TH2": "SEA", "TR1": "EUROPE", "TW2": "SEA", "VN2": "SEA"},
+    "R3": ["BR1", "EUN1", "EUW1", "JP1", "KR", "LA1", "LA2", "NA1", "OC1", "PH2", "RU", "SG2", "TH2",
+           "TR1", "TW2", "VN2"],
 }
 _MOUNTLIST: dict[str, str] = {
     "AccountV1": "R1",
@@ -88,7 +91,7 @@ for key, value in _MOUNTLIST.items():
 # TTL Cache
 BASE_TTL_ENTRY: int = 128
 BASE_TTL_MULTIPLIER: int = 16
-BASE_TTL_DURATION: int = 5 * MINUTE  # 5 minutes: This is also used in TTL Cache along with Request as a cron
+BASE_TTL_DURATION: int = 3 * MINUTE  # 3 minutes
 EXTENDED_TTL_DURATION: int = HOUR # 1 hour
 LIFETIME_TTL_DURATION: int = WEEK  # 1 week
 
@@ -109,8 +112,10 @@ def GeneratePattern(source_input: str, account: str, use_values_if_region: bool 
 REGION_ANNOTATED_PATTERN: str = GeneratePattern("REGION", "R1")
 NORMAL_CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C1")
 MATCH_CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C2")
+LOR_CONTINENT_ANNOTATED_PATTERN: str = GeneratePattern("CONTINENT", "C3")
 REGION_TTL_MULTIPLIER: int = REGION_ANNOTATED_PATTERN.count("|") + 1
 CONTINENT_TTL_MULTIPLIER: int = NORMAL_CONTINENT_ANNOTATED_PATTERN.count("|") + 1
+LOR_CONTINENT_TTL_MULTIPLIER: int = LOR_CONTINENT_ANNOTATED_PATTERN.count("|") + 1
 
 # ==================================================================================================
 # Credentials
