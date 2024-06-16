@@ -46,15 +46,17 @@ class CustomAPIRouter(APIRouter):
         return self._name
 
     def load_profile(self, name: str, toml_file: str = RIOTAPI_ENV_CFG_FILE, ) -> None:
-        self._name = name
         with open(toml_file, "r") as toml_stream:
-            profile = toml.load(toml_stream).get("riotapi", {}).get("routers", {}).get(name, {})
-            for key in name.split('.'):
-                profile = profile.get(key, {})
+            profile = toml.load(toml_stream)
+            names: list[str] = name.split(".")
+            for key_name in names:
+                profile = profile.get(key_name, {})
                 if not profile:
-                    logging.warning(f"The wanted profile as requested ({name}) is not found in the TOML file.")
+                    logging.warning(f"The wanted profile ({name} || {key_name}) is not found in the TOML file.")
                     return
-            logging.info(f"Loading profile {name} successfully: {pformat(profile)}")
+            self._name = names[-1]
+            logging.info(f"Loading profile {self._name} successfully: {pformat(profile)}")
+
             self.entry_scale = profile.get("ENTRY_SCALE", self.entry_scale)
             self.entry_exponential_scale = profile.get("ENTRY_EXP_SCALE", self.entry_exponential_scale)
             self.duration_scale = profile.get("DURATION_SCALE", self.duration_scale)
